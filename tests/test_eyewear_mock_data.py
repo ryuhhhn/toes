@@ -9,7 +9,7 @@ from normalize import normalize_csv
 
 
 def test_eyewear_csv_uploads_and_preserves_known_categories():
-    df = pd.read_csv('eyewear_mock_data.csv')
+    df = pd.read_csv(Path(__file__).resolve().parents[1] / 'merchant' / 'backend' / 'eyewear_mock_data.csv')
 
     products, report = normalize_csv(df, 'demo-eyewear')
 

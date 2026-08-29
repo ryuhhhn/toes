@@ -80,7 +80,7 @@ async def chat(request: ChatRequest):
 
 
 def _seed_catalog_from_json() -> None:
-    json_path = Path(__file__).resolve().parent.parent / "eyewear.json"
+    json_path = Path(__file__).resolve().parent.parent / "merchant" / "backend" / "eyewear.json"
     if not json_path.exists():
         return
 
