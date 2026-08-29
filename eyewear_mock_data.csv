@@ -1,0 +1,51 @@
+Product Code,Brand,Product Name,Category,Gender,Frame Shape,Frame Material,Frame Type,Frame Color,Suitable Face Shapes,Frame Width Fit,Size (Lens-Bridge-Temple mm),Weight (g),Spring Hinge,Price (USD),Stock Quantity,In Stock,Rating
+EYE-1001,Oakley,Oakley Pro OAK-125,Sunglasses,Men,Wayfarer,Titanium,Rimless,Tortoise,"Diamond, Heart",Narrow,48-16-135,17.9,Yes,239.03,1,Yes,4.6
+EYE-1002,Maui Jim,Maui Jim Modern MAU-529,Sunglasses,Unisex,Cat-Eye,Acetate,Full Rim,Rose Gold,"Square, Oval, Round",Medium,52-16-135,20.8,No,197.31,22,Yes,4.7
+EYE-1003,Oliver Peoples,Oliver Peoples Classic OLI-649,Sunglasses,Men,Cat-Eye,Combined Metal/Plastic,Semi-Rimless,Silver,"Round, Oval",Medium,52-16-140,29.6,No,203.34,29,Yes,4.0
+EYE-1004,Persol,Persol Pro PER-314,Sunglasses,Unisex,Round,Combined Metal/Plastic,Rimless,Gold,"Oval, Heart",Medium,54-19-140,26.3,Yes,335.21,3,Yes,4.7
+EYE-1005,Persol,Persol Elite PER-510,Optical Glasses,Men,Rectangle,Titanium,Rimless,Havana,"Heart, Oval, Diamond",Narrow,50-18-145,27.4,No,217.1,37,Yes,4.2
+EYE-1006,Gucci,Gucci Urban GUC-621,Optical Glasses,Men,Round,Titanium,Rimless,Gold,"Diamond, Round, Oval",Medium,54-21-150,23.5,Yes,371.76,0,No,4.5
+EYE-1007,Maui Jim,Maui Jim Elite MAU-868,Blue Light Glasses,Women,Round,Metal,Semi-Rimless,Gold,"Round, Square, Heart",Narrow,50-21-135,29.7,Yes,180.06,40,Yes,4.0
+EYE-1008,Gucci,Gucci Studio GUC-652,Blue Light Glasses,Men,Rectangle,TR90 Nylon,Full Rim,Tortoise,"Square, Oval, Round",Narrow,50-21-135,15.5,Yes,233.51,4,Yes,3.9
+EYE-1009,Oliver Peoples,Oliver Peoples Modern OLI-662,Sunglasses,Unisex,Oval,Titanium,Rimless,Silver,"Heart, Square, Oval",Wide,56-20-135,18.5,Yes,113.25,1,Yes,4.4
+EYE-1010,Ray-Ban,Ray-Ban Pro RAY-172,Blue Light Glasses,Men,Wayfarer,Acetate,Full Rim,Matte Black,"Diamond, Oval",Medium,52-20-140,23.7,No,301.16,36,Yes,4.1
+EYE-1011,Oliver Peoples,Oliver Peoples Urban OLI-926,Optical Glasses,Men,Round,TR90 Nylon,Semi-Rimless,Rose Gold,"Heart, Round, Square",Wide,58-16-135,21.2,Yes,191.7,6,Yes,4.0
+EYE-1012,Maui Jim,Maui Jim Modern MAU-559,Sunglasses,Men,Cat-Eye,TR90 Nylon,Full Rim,Tortoise,"Diamond, Round, Heart",Wide,58-21-135,31.4,Yes,359.01,15,Yes,4.2
+EYE-1013,Oliver Peoples,Oliver Peoples Studio OLI-318,Sunglasses,Men,Aviator,TR90 Nylon,Full Rim,Rose Gold,"Heart, Square, Oval",Wide,58-21-150,16.8,Yes,179.56,3,Yes,4.6
+EYE-1014,Ray-Ban,Ray-Ban Retro RAY-151,Sunglasses,Unisex,Aviator,Acetate,Rimless,Tortoise,"Round, Diamond",Wide,58-18-150,16.2,Yes,348.73,15,Yes,4.5
+EYE-1015,Warby Parker,Warby Parker Retro WAR-773,Blue Light Glasses,Unisex,Rectangle,Metal,Full Rim,Matte Black,"Square, Heart",Narrow,50-19-150,19.7,Yes,309.28,4,Yes,4.3
+EYE-1016,Burberry,Burberry Classic BUR-202,Blue Light Glasses,Men,Cat-Eye,Titanium,Semi-Rimless,Tortoise,"Square, Diamond",Narrow,50-20-145,25.0,Yes,376.36,41,Yes,4.5
+EYE-1017,Maui Jim,Maui Jim Pro MAU-406,Optical Glasses,Men,Cat-Eye,Acetate,Full Rim,Gunmetal,"Square, Diamond",Wide,56-18-145,17.7,No,275.76,16,Yes,4.1
+EYE-1018,Ray-Ban,Ray-Ban Pro RAY-194,Sunglasses,Women,Square,Acetate,Semi-Rimless,Gold,"Oval, Heart, Square",Wide,58-20-135,16.0,Yes,364.34,44,Yes,4.4
+EYE-1019,Persol,Persol Retro PER-696,Optical Glasses,Women,Aviator,Acetate,Semi-Rimless,Matte Black,"Square, Oval",Wide,58-18-135,20.4,Yes,254.57,26,Yes,4.8
+EYE-1020,Prada,Prada Modern PRA-985,Optical Glasses,Women,Square,Titanium,Rimless,Matte Black,"Oval, Square, Round",Wide,58-16-150,29.7,Yes,339.7,14,Yes,4.7
+EYE-1021,Oliver Peoples,Oliver Peoples Elite OLI-458,Optical Glasses,Men,Square,Titanium,Semi-Rimless,Matte Black,"Round, Square, Oval",Wide,58-21-150,26.2,Yes,335.44,21,Yes,3.9
+EYE-1022,Tom Ford,Tom Ford Retro TOM-282,Sunglasses,Men,Round,Combined Metal/Plastic,Semi-Rimless,Matte Black,"Heart, Round, Oval",Wide,56-18-145,14.8,Yes,219.28,33,Yes,4.2
+EYE-1023,Oakley,Oakley Elite OAK-780,Blue Light Glasses,Women,Round,Metal,Rimless,Clear/Transparent,"Square, Heart, Diamond",Medium,52-21-140,17.5,Yes,284.5,24,Yes,4.5
+EYE-1024,Tom Ford,Tom Ford Retro TOM-515,Optical Glasses,Women,Cat-Eye,Titanium,Semi-Rimless,Matte Black,"Heart, Diamond, Square",Narrow,50-21-150,28.3,Yes,368.55,10,Yes,4.1
+EYE-1025,Burberry,Burberry Classic BUR-443,Optical Glasses,Unisex,Cat-Eye,Titanium,Full Rim,Gold,"Round, Oval",Medium,54-21-135,22.2,Yes,347.55,36,Yes,4.6
+EYE-1026,Warby Parker,Warby Parker Urban WAR-606,Optical Glasses,Men,Square,Acetate,Semi-Rimless,Silver,"Diamond, Heart",Narrow,48-21-140,30.5,No,129.59,8,Yes,4.5
+EYE-1027,Maui Jim,Maui Jim Elite MAU-709,Sunglasses,Unisex,Oval,Combined Metal/Plastic,Semi-Rimless,Gold,"Heart, Square, Round",Wide,58-19-150,25.3,No,173.26,4,Yes,4.1
+EYE-1028,Persol,Persol Retro PER-427,Optical Glasses,Men,Aviator,Titanium,Semi-Rimless,Gold,"Round, Heart",Medium,54-19-150,21.5,No,153.95,26,Yes,4.8
+EYE-1029,Burberry,Burberry Classic BUR-812,Blue Light Glasses,Women,Geometric,Acetate,Semi-Rimless,Clear/Transparent,"Heart, Oval, Diamond",Narrow,50-19-150,22.7,No,205.82,42,Yes,4.6
+EYE-1030,Oliver Peoples,Oliver Peoples Retro OLI-230,Blue Light Glasses,Men,Oval,Combined Metal/Plastic,Rimless,Black,"Heart, Oval",Medium,54-18-135,18.7,No,188.3,29,Yes,4.2
+EYE-1031,Warby Parker,Warby Parker Studio WAR-384,Sunglasses,Women,Round,TR90 Nylon,Full Rim,Gunmetal,"Square, Oval",Wide,58-16-135,27.6,Yes,365.64,12,Yes,4.5
+EYE-1032,Prada,Prada Urban PRA-229,Blue Light Glasses,Men,Wayfarer,TR90 Nylon,Rimless,Clear/Transparent,"Oval, Round, Heart",Medium,52-16-135,30.7,No,259.1,24,Yes,4.8
+EYE-1033,Prada,Prada Retro PRA-177,Blue Light Glasses,Unisex,Wayfarer,Acetate,Rimless,Clear/Transparent,"Diamond, Round",Medium,52-21-150,25.9,No,114.65,41,Yes,3.8
+EYE-1034,Warby Parker,Warby Parker Urban WAR-942,Optical Glasses,Women,Rectangle,TR90 Nylon,Rimless,Gold,"Oval, Square, Heart",Wide,56-20-150,21.8,No,303.34,17,Yes,4.7
+EYE-1035,Oakley,Oakley Urban OAK-385,Optical Glasses,Women,Oval,Metal,Full Rim,Havana,"Oval, Heart, Round",Medium,52-19-145,19.0,Yes,264.9,17,Yes,4.4
+EYE-1036,Prada,Prada Modern PRA-187,Blue Light Glasses,Women,Geometric,Combined Metal/Plastic,Full Rim,Havana,"Heart, Round, Diamond",Medium,52-18-150,26.5,No,182.27,37,Yes,4.3
+EYE-1037,Maui Jim,Maui Jim Urban MAU-452,Blue Light Glasses,Unisex,Rectangle,Metal,Rimless,Havana,"Square, Diamond, Round",Narrow,48-18-145,16.2,Yes,247.72,44,Yes,4.0
+EYE-1038,Oliver Peoples,Oliver Peoples Pro OLI-383,Blue Light Glasses,Unisex,Cat-Eye,Acetate,Full Rim,Clear/Transparent,"Square, Oval",Medium,52-16-140,18.9,No,372.67,35,Yes,4.6
+EYE-1039,Gucci,Gucci Studio GUC-753,Sunglasses,Men,Square,Combined Metal/Plastic,Semi-Rimless,Havana,"Heart, Square, Round",Narrow,48-19-150,16.1,Yes,113.62,31,Yes,4.4
+EYE-1040,Ray-Ban,Ray-Ban Modern RAY-255,Blue Light Glasses,Women,Round,Titanium,Full Rim,Gunmetal,"Diamond, Oval, Square",Medium,54-20-150,19.4,No,262.73,27,Yes,4.4
+EYE-1041,Ray-Ban,Ray-Ban Pro RAY-724,Optical Glasses,Men,Wayfarer,Metal,Rimless,Tortoise,"Oval, Diamond",Wide,56-16-140,14.0,No,223.39,38,Yes,4.1
+EYE-1042,Prada,Prada Pro PRA-395,Sunglasses,Unisex,Geometric,Acetate,Rimless,Silver,"Diamond, Oval, Heart",Narrow,48-21-140,25.7,Yes,353.9,9,Yes,3.9
+EYE-1043,Tom Ford,Tom Ford Pro TOM-709,Blue Light Glasses,Women,Geometric,Acetate,Semi-Rimless,Clear/Transparent,"Square, Heart, Oval",Narrow,48-21-135,30.0,No,304.34,38,Yes,3.8
+EYE-1044,Prada,Prada Studio PRA-790,Blue Light Glasses,Unisex,Square,Metal,Rimless,Black,"Heart, Diamond",Medium,52-18-150,25.4,No,235.14,5,Yes,4.2
+EYE-1045,Persol,Persol Pro PER-428,Optical Glasses,Men,Rectangle,TR90 Nylon,Rimless,Havana,"Heart, Round, Oval",Narrow,48-19-145,19.8,Yes,371.5,25,Yes,4.5
+EYE-1046,Maui Jim,Maui Jim Urban MAU-573,Optical Glasses,Men,Rectangle,Combined Metal/Plastic,Semi-Rimless,Havana,"Oval, Square",Wide,56-18-145,21.9,Yes,294.0,7,Yes,4.9
+EYE-1047,Burberry,Burberry Modern BUR-918,Blue Light Glasses,Men,Cat-Eye,Combined Metal/Plastic,Full Rim,Gunmetal,"Round, Oval, Diamond",Medium,54-16-140,23.0,No,299.23,32,Yes,4.3
+EYE-1048,Oliver Peoples,Oliver Peoples Modern OLI-583,Sunglasses,Unisex,Aviator,TR90 Nylon,Full Rim,Gunmetal,"Round, Square",Medium,54-19-145,28.8,No,175.61,19,Yes,4.8
+EYE-1049,Oliver Peoples,Oliver Peoples Urban OLI-651,Sunglasses,Women,Oval,TR90 Nylon,Semi-Rimless,Silver,"Diamond, Heart",Narrow,50-20-135,19.7,No,229.8,24,Yes,4.9
+EYE-1050,Gucci,Gucci Classic GUC-607,Optical Glasses,Unisex,Rectangle,Acetate,Semi-Rimless,Tortoise,"Round, Oval, Heart",Wide,58-18-135,22.5,No,371.22,21,Yes,4.5
