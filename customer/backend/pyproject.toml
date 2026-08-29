@@ -1,0 +1,40 @@
+[project]
+name = "visa-agent-backend"
+version = "0.1.0"
+description = "Consumer / Agent Backend for a conversational commerce agent"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "httpx>=0.27",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "rapidfuzz>=3.10",
+    "pyyaml>=6.0",
+    "python-multipart>=0.0.12",
+    "openai>=1.55",
+    "anthropic>=0.39",
+    "langchain-ollama>=0.2",
+    "openpyxl>=3.1",
+    "xlrd>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
