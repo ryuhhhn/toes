@@ -47,3 +47,14 @@ class ProductUpdate(BaseModel):
     attributes: Optional[dict[str, Any]] = None
     image_url: Optional[str] = None
     stock: Optional[int] = None
+
+
+class ChatRequest(BaseModel):
+    merchant_id: str
+    message: str = Field(min_length=1, max_length=2000)
+
+
+class ChatResponse(BaseModel):
+    message: str
+    products: list[Product] = Field(default_factory=list)
+    filters: dict[str, Any] = Field(default_factory=dict)

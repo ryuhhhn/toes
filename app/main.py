@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from io import StringIO
 from pathlib import Path
 from typing import Optional
@@ -10,11 +11,33 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.normalize import normalize_csv
-from app.schemas import ProductUpdate, UploadResponse
+from app.schemas import ChatRequest, ChatResponse, ProductUpdate, UploadResponse
 from app.storage import get_catalog, get_categories, replace_catalog, search_catalog, update_product
 from database import create_schema
+from llm_client import OpenAIInferenceClient
 
 app = FastAPI(title="Merchant Backend", version="1.0.0")
+llm_client = None
+
+
+def _fallback_chat_filters(message: str) -> dict[str, object]:
+    """Extract basic search terms when OpenAI is unavailable."""
+    ignored = {
+        "a", "an", "and", "affordable", "below", "cheap", "dollars",
+        "find", "fit", "for", "frames", "frame", "glasses", "me", "my",
+        "of", "please", "price", "show", "some", "that", "the", "under",
+        "want", "with",
+    }
+    words = re.findall(r"[a-z0-9]+", message.lower())
+    query_words = [word for word in words if word not in ignored and not word.isdigit()]
+    prices = [float(value) for value in re.findall(r"\$?\d+(?:\.\d+)?", message)]
+    filters: dict[str, object] = {
+        "query": " ".join(query_words) or None,
+        "in_stock_only": True,
+    }
+    if prices and any(word in words for word in ("under", "below", "less")):
+        filters["max_price"] = prices[-1]
+    return filters
 
 
 @app.get("/")
@@ -25,6 +48,35 @@ async def root():
         "docs": "/docs",
         "health": "/health",
     }
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    """Find in-stock catalog products from a natural-language shopper request."""
+    global llm_client
+    if not request.merchant_id.strip():
+        raise HTTPException(status_code=400, detail="merchant_id is required")
+
+    if llm_client is None:
+        try:
+            llm_client = OpenAIInferenceClient()
+        except ValueError:
+            llm_client = False
+
+    filters = None
+    if llm_client:
+        filters = llm_client.parse_search_request(request.message)
+
+    if not filters:
+        filters = _fallback_chat_filters(request.message)
+    filters.setdefault("in_stock_only", True)
+    products = search_catalog(merchant_id=request.merchant_id, **filters)
+
+    if products:
+        response_message = f"I found {len(products)} matching product{'s' if len(products) != 1 else ''}."
+    else:
+        response_message = "I couldn't find an in-stock product matching that request."
+    return {"message": response_message, "products": products, "filters": filters}
 
 
 def _seed_catalog_from_json() -> None:

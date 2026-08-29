@@ -7,6 +7,7 @@ Install: pip install openai
 from __future__ import annotations
 
 import os
+import json
 from typing import Any
 
 from taxonomy import InferenceResult, LLMInferenceClient
@@ -114,3 +115,33 @@ Be concise and choose from common retail categories. If unsure, respond "General
             warnings.warn(f"OpenAI inference failed: {e}", stacklevel=2)
 
         return None
+
+    def parse_search_request(self, message: str) -> dict[str, Any] | None:
+        """Convert a shopper message into filters understood by the catalog API."""
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Extract catalog search filters from the shopper message. "
+                            "Return JSON only with keys query, category, min_price, "
+                            "max_price, and in_stock_only. Use null for unknown values, "
+                            "true for in_stock_only unless the shopper asks for unavailable items."
+                        ),
+                    },
+                    {"role": "user", "content": message},
+                ],
+                temperature=0,
+                max_tokens=120,
+                response_format={"type": "json_object"},
+                timeout=8,
+            )
+            payload = json.loads(response.choices[0].message.content or "{}")
+            allowed = {"query", "category", "min_price", "max_price", "in_stock_only"}
+            return {key: payload.get(key) for key in allowed if key in payload}
+        except Exception as e:
+            import warnings
+            warnings.warn(f"OpenAI search parsing failed: {e}", stacklevel=2)
+            return None

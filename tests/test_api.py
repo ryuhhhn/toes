@@ -32,6 +32,90 @@ class TestHealthcheck:
         assert data["status"] == "ok"
 
 
+class TestChat:
+    """Natural-language product discovery tests."""
+
+    def test_chat_fallback_searches_attributes_without_openai(self, monkeypatch):
+        """Test chat still finds products when OpenAI is unavailable."""
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        csv = """id,title,price,color,frame shape,stock
+        P1,Everyday Frame,80.00,Black,Round,4
+        P2,Blue Frame,70.00,Blue,Square,4"""
+        response = client.post(
+            "/catalog/upload",
+            files={"file": ("chat.csv", io.BytesIO(csv.encode()))},
+            data={"merchant_id": "chat-fallback"},
+        )
+        assert response.status_code == 200
+
+        response = client.post(
+            "/chat",
+            json={
+                "merchant_id": "chat-fallback",
+                "message": "black round",
+            },
+        )
+        assert response.status_code == 200
+        result = response.json()
+        assert result["products"][0]["id"] == "P1"
+        assert result["filters"]["in_stock_only"] is True
+
+    def test_chat_rejects_empty_message(self):
+        response = client.post(
+            "/chat",
+            json={"merchant_id": "chat-empty", "message": ""},
+        )
+        assert response.status_code == 422
+
+    def test_chat_fallback_handles_shopping_language(self, monkeypatch):
+        """Test the exact natural-language fallback without an API key."""
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        csv = """id,title,price,category,frame color,stock
+        P1,Everyday Frame,80.00,Sunglasses,Black,4
+        P2,Blue Frame,70.00,Sunglasses,Blue,4"""
+        upload = client.post(
+            "/catalog/upload",
+            files={"file": ("chat.csv", io.BytesIO(csv.encode()))},
+            data={"merchant_id": "chat-phrase"},
+        )
+        assert upload.status_code == 200
+
+        response = client.post(
+            "/chat",
+            json={
+                "merchant_id": "chat-phrase",
+                "message": "Show me affordable black sunglasses under 150 dollars",
+            },
+        )
+        assert response.status_code == 200
+        result = response.json()
+        assert [product["id"] for product in result["products"]] == ["P1"]
+        assert result["filters"]["max_price"] == 150
+
+    def test_chat_searches_attribute_field_names(self, monkeypatch):
+        """Test a request that refers to an attribute field and its value."""
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        csv = """id,title,price,frame width fit,stock
+        P1,Lightweight Frame,80.00,Narrow,4
+        P2,Wide Frame,90.00,Wide,4"""
+        upload = client.post(
+            "/catalog/upload",
+            files={"file": ("chat.csv", io.BytesIO(csv.encode()))},
+            data={"merchant_id": "chat-width"},
+        )
+        assert upload.status_code == 200
+
+        response = client.post(
+            "/chat",
+            json={
+                "merchant_id": "chat-width",
+                "message": "Show me glasses with narrow frame width fit",
+            },
+        )
+        assert response.status_code == 200
+        assert [product["id"] for product in response.json()["products"]] == ["P1"]
+
+
 class TestUploadWorkflows:
     """CSV upload workflow tests."""
 

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
@@ -35,8 +34,15 @@ Run the backend tests with:
 ```bash
 pytest -q
 ```
-print(report.to_dict())
-"
+
+### Shopper chat
+`POST /chat` accepts a natural-language product request:
+
+```json
+{
+	"merchant_id": "demo-eyewear",
+	"message": "Show me affordable black sunglasses"
+}
 ```
-This exercises the real logic without needing FastAPI installed.
->>>>>>> 7ac3c08 (Complete catalog API and LLM integration)
+
+When `OPENAI_API_KEY` is configured, OpenAI extracts search filters. The backend then searches product titles, descriptions, and attributes, returning only in-stock matches by default. Without an API key, the endpoint still performs keyword search.

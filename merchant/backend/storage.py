@@ -144,10 +144,20 @@ def search_catalog(
     results = get_catalog(merchant_id)
 
     if query:
-        q = query.lower()
+        terms = [term for term in query.lower().split() if term]
+
+        def searchable_text(product: dict[str, Any]) -> str:
+            attributes = product.get("attributes") or {}
+            return " ".join([
+                str(product.get("title", "")),
+                str(product.get("description", "")),
+                str(product.get("category", "")),
+                *(f"{key} {value}" for key, value in attributes.items()),
+            ]).lower()
+
         results = [
-            p for p in results
-            if q in p.get("title", "").lower() or q in p.get("description", "").lower()
+            product for product in results
+            if all(term in searchable_text(product) for term in terms)
         ]
     if category:
         results = [p for p in results if (p.get("category") or "").lower() == category.lower()]
