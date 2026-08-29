@@ -127,8 +127,13 @@ Be concise and choose from common retail categories. If unsure, respond "General
                         "content": (
                             "Extract catalog search filters from the shopper message. "
                             "Return JSON only with keys query, category, min_price, "
-                            "max_price, and in_stock_only. Use null for unknown values, "
-                            "true for in_stock_only unless the shopper asks for unavailable items."
+                            "max_price, in_stock_only, and attribute_filters. "
+                            "attribute_filters must map any catalog field name to either "
+                            "a text value or an object with min, max, or contains. "
+                            "For example, 'weight less than 20g' becomes "
+                            "{\"attribute_filters\": {\"weight\": {\"max\": 20}}}. "
+                            "Use null for unknown values and true for in_stock_only unless "
+                            "the shopper asks for unavailable items."
                         ),
                     },
                     {"role": "user", "content": message},
@@ -139,7 +144,10 @@ Be concise and choose from common retail categories. If unsure, respond "General
                 timeout=8,
             )
             payload = json.loads(response.choices[0].message.content or "{}")
-            allowed = {"query", "category", "min_price", "max_price", "in_stock_only"}
+            allowed = {
+                "query", "category", "min_price", "max_price",
+                "in_stock_only", "attribute_filters",
+            }
             return {key: payload.get(key) for key in allowed if key in payload}
         except Exception as e:
             import warnings

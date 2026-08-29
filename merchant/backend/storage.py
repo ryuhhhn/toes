@@ -134,6 +134,7 @@ def search_catalog(
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     in_stock_only: bool = False,
+    attribute_filters: Optional[dict[str, Any]] = None,
 ) -> list[dict[str, Any]]:
     """
     Structured filtering (spec 2.3, Option A). Matches `query` against
@@ -167,6 +168,31 @@ def search_catalog(
         results = [p for p in results if p.get("price", 0) <= max_price]
     if in_stock_only:
         results = [p for p in results if p.get("stock", 0) > 0]
+
+    if attribute_filters:
+        def matches_attributes(product: dict[str, Any]) -> bool:
+            attributes = product.get("attributes") or {}
+            normalized = {str(key).lower().replace(" ", "_"): value for key, value in attributes.items()}
+            for field, expected in attribute_filters.items():
+                actual = normalized.get(str(field).lower().replace(" ", "_"))
+                if actual is None:
+                    return False
+                if isinstance(expected, dict):
+                    try:
+                        actual_number = float(str(actual).split()[0])
+                    except (TypeError, ValueError):
+                        return False
+                    if expected.get("min") is not None and actual_number < float(expected["min"]):
+                        return False
+                    if expected.get("max") is not None and actual_number > float(expected["max"]):
+                        return False
+                    if expected.get("contains") is not None and str(expected["contains"]).lower() not in str(actual).lower():
+                        return False
+                elif str(expected).lower() not in str(actual).lower():
+                    return False
+            return True
+
+        results = [product for product in results if matches_attributes(product)]
 
     return results
 

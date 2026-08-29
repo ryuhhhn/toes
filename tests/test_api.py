@@ -35,6 +35,39 @@ class TestHealthcheck:
 class TestChat:
     """Natural-language product discovery tests."""
 
+    def test_chat_applies_llm_attribute_filter(self, monkeypatch):
+        """Test arbitrary numeric attributes returned by the LLM are applied."""
+        class FakeLLM:
+            def parse_search_request(self, message):
+                return {
+                    "query": "glasses",
+                    "in_stock_only": True,
+                    "attribute_filters": {"weight": {"max": 20}},
+                }
+
+        monkeypatch.setattr("app.main.llm_client", FakeLLM())
+        csv = """id,title,price,weight,stock
+        P1,Light Glasses,80.00,19.5,4
+        P2,Heavy Glasses,90.00,22.0,4"""
+        upload = client.post(
+            "/catalog/upload",
+            files={"file": ("chat.csv", io.BytesIO(csv.encode()))},
+            data={"merchant_id": "chat-weight"},
+        )
+        assert upload.status_code == 200
+
+        response = client.post(
+            "/chat",
+            json={
+                "merchant_id": "chat-weight",
+                "message": "glasses weight less than 20g",
+            },
+        )
+        assert response.status_code == 200
+        result = response.json()
+        assert [product["id"] for product in result["products"]] == ["P1"]
+        assert result["filters"]["attribute_filters"] == {"weight": {"max": 20}}
+
     def test_chat_fallback_searches_attributes_without_openai(self, monkeypatch):
         """Test chat still finds products when OpenAI is unavailable."""
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
