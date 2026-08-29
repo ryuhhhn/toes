@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>toes Merchant Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">✦</span><span>toes</span></div>
+    <div class="workspace-label">WORKSPACE</div>
+    <button class="store-switcher"><span class="store-avatar">N</span><span><strong>Northstar Goods</strong><small>Merchant account</small></span><span class="chevron">⌄</span></button>
+    <nav>
+      <button class="nav-item active" data-view="catalog"><span>▦</span> Catalog</button>
+      <button class="nav-item" data-view="review"><span>◎</span> Profile review</button>
+      <button class="nav-item" data-view="activity"><span>◷</span> Agent activity</button>
+      <button class="nav-item" data-view="settings"><span>⚙</span> Settings</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="help-card"><span class="spark">✧</span><strong>Need a hand?</strong><p>Our team is here to help you get set up.</p><a href="#">Visit help center →</a></div>
+      <div class="user-row"><span class="user-avatar">JD</span><span><strong>Jordan Davis</strong><small>Admin</small></span><span class="more">•••</span></div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div><span class="eyebrow">MERCHANT CONSOLE</span><h1 id="page-title">Catalog</h1></div>
+      <div class="top-actions">
+        <span class="status-dot"></span><span>Agent is live</span>
+        <a class="storefront-link" href="../storefront/chatbot.html">Open storefront →</a>
+        <button class="avatar">JD</button>
+      </div>
+    </header>
+
+    <section id="catalog-view" class="content">
+      <div class="page-intro">
+        <div>
+          <h2>Your product catalog</h2>
+          <p>Keep your catalog current so your shopping agent can give customers the right answers.</p>
+        </div>
+        <button class="primary" id="open-upload">＋ Upload CSV</button>
+      </div>
+      <div class="stats">
+        <div><span>Total products</span><strong id="total-products">—</strong><small>stored as raw rows, served untouched</small></div>
+        <div><span>Catalog status</span><strong class="status-pill"><i></i> Live</strong><small>the agent reads this catalog directly</small></div>
+        <div><span>Product category</span><strong id="category-stat">—</strong><small id="category-sub">derived by the agent</small></div>
+      </div>
+      <div class="table-card">
+        <div class="table-toolbar">
+          <div><h3>All products</h3><p id="product-count">loading…</p></div>
+          <label class="search"><span>⌕</span><input id="search" placeholder="Search products" /></label>
+          <button class="secondary" id="replace-upload">↻ Replace catalog</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock</th></tr></thead>
+            <tbody id="product-rows"></tbody>
+          </table>
+        </div>
+        <div class="pagination"><span id="page-label">—</span><div><button id="prev">←</button><button id="next">→</button></div></div>
+      </div>
+    </section>
+
+    <section id="review-view" class="content hidden">
+      <div class="page-intro">
+        <div>
+          <h2>What the agent understood</h2>
+          <p>Your spreadsheet's columns, read and interpreted. Correct anything that is
+          wrong here — the agent uses exactly what you approve.</p>
+        </div>
+        <button class="secondary" id="reload-review">↻ Reload</button>
+      </div>
+      <div id="review-body"></div>
+    </section>
+
+    <section id="activity-view" class="content hidden">
+      <div class="page-intro"><div><h2>Agent activity</h2><p>See how your shopping agent is helping customers.</p></div><button class="secondary">Last 30 days ⌄</button></div>
+      <div class="activity-grid">
+        <div class="metric-large"><span>Queries received</span><strong>1,248</strong><small class="positive">↑ 18.4% vs. previous period</small><div class="chart"><i style="height:35%"></i><i style="height:48%"></i><i style="height:42%"></i><i style="height:65%"></i><i style="height:58%"></i><i style="height:82%"></i><i style="height:72%"></i><i style="height:94%"></i></div></div>
+        <div class="metric-large"><span>Purchases completed</span><strong>86</strong><small class="positive">↑ 9.2% vs. previous period</small><div class="chart purple"><i style="height:25%"></i><i style="height:42%"></i><i style="height:32%"></i><i style="height:57%"></i><i style="height:45%"></i><i style="height:76%"></i><i style="height:66%"></i><i style="height:88%"></i></div></div>
+      </div>
+      <div class="table-card activity-table">
+        <h3>Recent agent conversations</h3>
+        <p>Customer intent and outcome from your latest sessions.</p>
+        <table><tbody>
+          <tr><td><strong>“Do you have a ceramic vase under $50?”</strong><small>Today, 10:42 AM</small></td><td><span class="outcome success">Purchase completed</span></td><td>$42.00</td></tr>
+          <tr><td><strong>“What’s your return policy?”</strong><small>Today, 10:16 AM</small></td><td><span class="outcome">Answered</span></td><td>—</td></tr>
+        </tbody></table>
+      </div>
+    </section>
+
+    <section id="settings-view" class="content hidden">
+      <div class="page-intro"><div><h2>Settings</h2><p>Manage how toes works for your store.</p></div></div>
+      <div class="settings-card">
+        <h3>Store profile</h3>
+        <label>Store name<input value="Northstar Goods"></label>
+        <label>Agent greeting<input value="Hi! What can I help you find today?"></label>
+        <button class="primary">Save changes</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Upload modal. Choosing a file NEVER uploads it: the merchant picks, checks
+       what they picked, and presses Ingest. -->
+  <div class="modal-backdrop hidden" id="upload-modal">
+    <div class="modal">
+      <button class="close" id="close-modal">×</button>
+
+      <div id="upload-form">
+        <div class="modal-icon">↑</div>
+        <span class="eyebrow">CATALOG IMPORT</span>
+        <h2>Upload your product catalog</h2>
+        <p>Pick a CSV, check it below, then press <strong>Ingest catalog</strong>. Nothing is sent until you do.</p>
+
+        <label class="dropzone" id="dropzone">
+          <input type="file" id="file-input" accept=".csv,text/csv">
+          <span class="upload-cloud">↥</span>
+          <strong>Choose a CSV file</strong>
+          <small>or drag and drop here · Max 10 MB</small>
+        </label>
+
+        <div class="file-picked hidden" id="file-picked">
+          <span class="file-icon">▤</span>
+          <div class="file-meta">
+            <strong id="file-name">—</strong>
+            <small id="file-size"></small>
+          </div>
+          <button class="link-clear" id="clear-file">Remove</button>
+        </div>
+
+        <div class="requirements">
+          <strong>Your CSV should include</strong>
+          <span>Product name</span><span>Price</span><span>SKU</span><span>Stock</span>
+        </div>
+
+        <div id="upload-feedback"></div>
+
+        <div class="modal-actions">
+          <button class="secondary" id="cancel-upload">Cancel</button>
+          <button class="primary" id="ingest-btn" disabled>Ingest catalog</button>
+        </div>
+      </div>
+
+      <!-- shown once the ingest actually succeeded -->
+      <div id="upload-done" class="upload-done hidden">
+        <div class="done-check">✓</div>
+        <h2>Catalog uploaded</h2>
+        <p id="done-file">—</p>
+        <div class="done-stats" id="done-stats"></div>
+        <div class="modal-actions">
+          <button class="secondary" id="done-close">Back to catalog</button>
+          <button class="primary" id="done-review">Review what the agent understood →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="review.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,87 @@
+# The whole stack: Postgres + merchant :8001 + agent :8002 + payments :8003.
+#
+#   docker compose up -d db     # just the database, for running services bare
+#   docker compose up           # everything
+#
+# The frontends are static and are NOT containerized — `python web/serve.py` (:8090)
+# serves both from one origin. Adding nginx to serve six files would be ceremony.
+#
+# NOTE ON PORT 5432: a native PostgreSQL service owns it on the machine this was built
+# on, and on Windows that SILENTLY SHADOWS a container's publish rather than failing
+# it — `docker ps` prints 0.0.0.0:5432->5432/tcp while host connections reach the
+# native server and fail password auth. The host port therefore defaults to 5433.
+# Inside this network services still reach `db:5432`, so DB_HOST_PORT only affects
+# processes you run outside compose.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: payments
+    ports:
+      - "${DB_HOST_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Creates the `merchant` database on first init. Both DATABASE_URL and
+      # MERCHANT_DATABASE_URL point at this one instance, different databases.
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  merchant:
+    build: ./services/merchant
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    env_file: [.env]
+    environment:
+      # Inside the network the host is the service name and the port is the internal
+      # one. These override whatever localhost:5433 values .env carries for bare runs.
+      MERCHANT_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/merchant
+      SEED_ON_STARTUP: "true"
+    depends_on:
+      db: {condition: service_healthy}
+
+  payments:
+    build: ./services/payments
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8003
+    ports:
+      - "8003:8003"
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/payments
+    depends_on:
+      db: {condition: service_healthy}
+
+  agent:
+    build: ./services/agent
+    # ONE worker, and no --reload. SessionStore is in-process, so a second worker or a
+    # reload drops the shopper's cart mid-conversation.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --workers 1
+    ports:
+      - "8002:8002"
+    env_file: [.env]
+    environment:
+      MERCHANT_BASE_URL: http://merchant:8001
+      PAYMENT_BASE_URL: http://payments:8003
+      # Ollama runs on the host, not in this network.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL_IN_COMPOSE:-http://host.docker.internal:11434}
+      DATA_DIR: /srv/data
+    volumes:
+      # Derived profiles and vector indexes survive a rebuild; without this every
+      # `compose up` re-embeds the whole catalog.
+      - agentdata:/srv/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      merchant: {condition: service_started}
+      payments: {condition: service_started}
+
+volumes:
+  pgdata:
+  agentdata:

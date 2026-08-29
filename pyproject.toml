@@ -1,0 +1,26 @@
+[project]
+name = "visa-lifehack-smoke"
+version = "0.1.0"
+description = "Root-level cross-service smoke test. The services themselves live under services/."
+requires-python = ">=3.11"
+dependencies = []
+
+# The repo root is not a distributable package — it is a place to run the smoke test
+# from. Without this, setuptools tries to auto-discover packages and trips over
+# `web/`, `docker/` and `services/` as three competing top-level packages.
+[tool.uv]
+package = false
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9",
+    "pytest-asyncio>=1.4",
+    "httpx>=0.28",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Only the smoke test. The three services each own their own suite and are run from
+# their own directories with their own venvs — collecting them from here would import
+# three different packages that are all called `app`.
+testpaths = ["tests"]

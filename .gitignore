@@ -1,0 +1,27 @@
+# Secrets — must stay first. Nothing in this repo may commit a key.
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Generated data (profiles, indexes, audit logs)
+data/
+*.npy
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# OS
+.DS_Store
+Thumbs.db

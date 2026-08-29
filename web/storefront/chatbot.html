@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>toes Concierge</title>
+    <link rel="stylesheet" href="chatbot.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- app bar ------------------------------------------------------------ -->
+      <header class="app-bar">
+        <div class="brand">
+          <span class="merchant-logo">✦</span>
+          <span class="brand-mark">toes</span>
+          <span class="brand-sub">shopping concierge</span>
+        </div>
+        <div class="app-bar-right">
+          <span class="secure">♢ Visa Secure</span>
+          <a class="console-link" href="../merchant-console/index.html">Merchant console →</a>
+        </div>
+      </header>
+
+      <!-- 60 / 40 split ------------------------------------------------------ -->
+      <div class="split">
+        <!-- LEFT 60%: the conversation ------------------------------------- -->
+        <section class="chat-pane">
+          <div class="thread" id="thread">
+            <div class="thread-inner">
+              <section class="welcome">
+                <div class="headset">♧</div>
+                <div>
+                  <h1>toes concierge</h1>
+                  <p>
+                    Ask for what you want. I will find it, compare the options
+                    and check you out — all in this one conversation.
+                  </p>
+                </div>
+              </section>
+
+              <div class="message agent">
+                <!-- `white-space: pre-wrap` on .bubble means the source indentation of
+                     this text is rendered. Keep it flush left on one line. -->
+                <div class="bubble intro">Hi! I'm the toes shopping agent. Tell me what you're looking for — everything I find appears in the panel on the right.</div>
+              </div>
+
+              <div class="chips">
+                <button>What do you have under 200?</button>
+                <button>Help me choose between your best options</button>
+                <button>Compare your top two picks</button>
+              </div>
+
+              <div id="conversation"></div>
+            </div>
+          </div>
+
+          <form id="composer">
+            <input id="chat-input" placeholder="Ask about specs, delivery, returns…" autocomplete="off" />
+            <button title="Send">↵</button>
+          </form>
+        </section>
+
+        <!-- RIGHT 40%: products, always there; cart + checkout docked bottom -->
+        <aside class="product-pane">
+          <!-- products view -->
+          <div class="pane-stack" id="pane-products">
+            <div class="pane-head">
+              <div class="pane-head-copy">
+                <strong>Your options</strong>
+                <small id="products-note">Nothing yet — ask for something to get started.</small>
+              </div>
+              <span class="pane-count hidden" id="products-count">0</span>
+            </div>
+
+            <div class="pane-scroll" id="product-scroll">
+              <div id="product-caveat"></div>
+              <div class="pane-empty" id="product-empty">
+                <div class="pane-empty-art">▦</div>
+                <strong>Product picks land here</strong>
+                <p>
+                  As you talk to the agent, the options it recommends stay
+                  pinned in this panel, so you never scroll back to find them.
+                </p>
+              </div>
+              <div class="products" id="product-list"></div>
+            </div>
+
+            <!-- cart dock, bottom right -->
+            <div class="cart-dock hidden" id="order">
+              <div class="cart-head">
+                <strong>Your basket</strong>
+                <span id="item-count">0 items</span>
+              </div>
+              <div id="order-lines" class="cart-lines"></div>
+              <div class="cart-foot">
+                <div class="cart-total">
+                  <small>Subtotal</small>
+                  <strong id="order-total">—</strong>
+                </div>
+                <button id="checkout" class="checkout">Checkout with Visa</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- checkout view: three stages, one always-visible action button ---
+               The action lives OUTSIDE .pane-scroll so it can never be scrolled
+               off. Its label and handler change per stage; the stages themselves
+               are the only thing that scrolls. -->
+          <div class="pane-stack hidden" id="pane-checkout">
+            <div class="pane-head">
+              <button class="back" id="back-to-products" title="Back to options">←</button>
+              <div class="pane-head-copy">
+                <strong>Secure checkout</strong>
+                <small id="checkout-step">Step 1 of 3 · Your details</small>
+              </div>
+            </div>
+
+            <ol class="stepper" id="stepper">
+              <li data-step="1"><i>1</i><span>Details</span></li>
+              <li data-step="2"><i>2</i><span>Card</span></li>
+              <li data-step="3"><i>3</i><span>Authorize</span></li>
+            </ol>
+
+            <div class="pane-scroll" id="checkout-scroll">
+              <!-- stage 1: name + address -->
+              <div id="customer-details" class="co-card">
+                <div class="co-card-head">
+                  <span class="step-dot">1</span><strong>Name and address</strong>
+                </div>
+                <div class="field-grid">
+                  <label class="wide">
+                    <span>Full name</span>
+                    <input id="customer-name" type="text" placeholder="Jane Smith" autocomplete="name" />
+                  </label>
+                  <label class="wide">
+                    <span>Email address</span>
+                    <input id="customer-email" type="email" placeholder="jane@example.com" autocomplete="email" />
+                  </label>
+                  <label class="wide">
+                    <span>Delivery address</span>
+                    <textarea id="customer-address" rows="2" placeholder="123 Market Street, London" autocomplete="street-address"></textarea>
+                  </label>
+                </div>
+                <small id="details-problem" class="problem"></small>
+              </div>
+
+              <!-- stage 2: card details -->
+              <div id="card-step" class="co-card hidden">
+                <div class="co-card-head">
+                  <span class="step-dot">2</span><strong>Card details</strong>
+                  <small class="sim">Simulated</small>
+                </div>
+
+                <div class="card-frame">
+                  <div class="visa-card">
+                    <div class="visa-top"><b>VISA</b><span>Tokenized</span></div>
+                    <span class="visa-chip" aria-hidden="true"></span>
+                    <strong id="visa-number">•••• •••• •••• ••••</strong>
+                    <div class="visa-foot">
+                      <span id="visa-cardholder">CARDHOLDER NAME</span>
+                      <i id="visa-expiry">MM/YY</i>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="field-grid">
+                  <label class="wide">
+                    <span>Card number</span>
+                    <input id="card-number" type="text" inputmode="numeric" placeholder="4242 4242 4242 4242" maxlength="23" autocomplete="cc-number" />
+                  </label>
+                  <label class="wide">
+                    <span>Name on card</span>
+                    <input id="card-name" type="text" placeholder="Jane Smith" autocomplete="cc-name" />
+                  </label>
+                  <label>
+                    <span>Expiry</span>
+                    <input id="card-expiry" type="text" inputmode="numeric" placeholder="09/28" maxlength="5" autocomplete="cc-exp" />
+                  </label>
+                  <label>
+                    <span>CVC</span>
+                    <input id="card-cvc" type="text" inputmode="numeric" placeholder="123" maxlength="4" autocomplete="cc-csc" />
+                  </label>
+                </div>
+                <small id="card-problem" class="problem"></small>
+                <button class="co-back" data-back="1">← Back to your details</button>
+              </div>
+
+              <!-- stage 3: passkey, review, consent. The charge itself is authorized
+                   by the agent's single-use token, not by anything on this screen. -->
+              <div id="authorize-step" class="co-card hidden">
+                <div class="passkey-ok">
+                  <span class="passkey-tick">✓</span>
+                  <div>
+                    <strong>Passkey accepted</strong>
+                    <small>Verified on this device · Visa Secure</small>
+                  </div>
+                </div>
+
+                <div class="co-card-head">
+                  <span class="step-dot">3</span><strong>Review &amp; authorize</strong>
+                </div>
+                <div id="preview-lines" class="preview-lines"></div>
+                <div class="payment-facts">
+                  <div><small>Amount</small><b id="pay-amount">—</b></div>
+                  <div><small>Method</small><b id="pay-method">Visa ••••</b></div>
+                  <div><small>Protection</small><b>Visa Secure</b></div>
+                </div>
+                <small id="preview-expiry" class="preview-expiry"></small>
+
+                <label class="consent">
+                  <input id="consent" type="checkbox" />
+                  <span>I authorize this agent to charge <b id="consent-amount">—</b> to my card ending <b id="consent-last4">••••</b>.</span>
+                </label>
+                <div id="payment-status" class="payment-status hidden"></div>
+                <button class="co-back" data-back="2">← Back to card details</button>
+              </div>
+
+              <!-- done -->
+              <div id="receipt" class="co-card receipt hidden">
+                <div class="receipt-check">✓</div>
+                <strong id="receipt-title">Order confirmed</strong>
+                <div id="receipt-lines" class="preview-lines"></div>
+                <span id="receipt-summary"></span>
+              </div>
+            </div>
+
+            <div class="pane-foot" id="checkout-foot">
+              <div class="foot-total hidden" id="foot-total">
+                <small>Total</small><strong id="foot-amount">—</strong>
+              </div>
+              <button id="co-action" class="checkout">Continue to card details</button>
+              <small class="demo-only">Demo only · no real charge will be made</small>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="app-foot">Powered by <b>toes</b> · conversational commerce on Visa</footer>
+    </div>
+
+    <script src="../config.js"></script>
+    <script src="chatbot.js"></script>
+  </body>
+</html>
