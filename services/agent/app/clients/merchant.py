@@ -1,9 +1,12 @@
 """Merchant Backend client.
 
-We consume exactly two things: the full catalog, and a by-ids lookup for reverifying price
+We read exactly two things: the full catalog, and a by-ids lookup for reverifying price
 and stock immediately before a charge — both from GET /catalog/raw, which serves the
 uploaded sheet untouched (docs/CONTRACTS.md §1.1). Their normalized GET /catalog is the
 merchant console's own view and must never be read here; GET /catalog/search is retired.
+
+We write exactly one thing: stock, after a charge is captured (§1.5), so the shop's
+inventory follows the sale it just made.
 
 The index is for discovery only (invariant 5), which makes fetch_by_ids the single most
 safety-critical call in this file.
@@ -83,6 +86,33 @@ class MerchantClient:
             if key is not None:
                 result[str(key)] = row
         return result
+
+    async def adjust_stock(
+        self, merchant_id: str, updates: dict[str, dict[str, object]]
+    ) -> int:
+        """Write new values into the merchant's raw rows. See docs/CONTRACTS.md §1.5.
+
+        We name the column, because we are the side that knows which column means stock —
+        the merchant stores rows and does not interpret them (§0).
+
+        Returns the number of rows written. Raises MerchantUnavailable on failure, which
+        the caller is expected to swallow: this runs AFTER a charge is captured, and
+        money that has already moved must not be undone by a failed bookkeeping write.
+        """
+        if not updates:
+            return 0
+
+        url = f"{self._base_url}/catalog/{merchant_id}/stock"
+        try:
+            response = await self.client.post(url, json={"updates": updates})
+            response.raise_for_status()
+            payload = response.json()
+        except httpx.HTTPError as exc:
+            raise MerchantUnavailable(f"stock write failed at {url}: {exc}") from exc
+        except ValueError as exc:
+            raise MerchantUnavailable(f"stock write returned invalid JSON: {exc}") from exc
+
+        return int(payload.get("updated", 0)) if isinstance(payload, dict) else 0
 
     async def list_merchants(self) -> list[str]:
         try:

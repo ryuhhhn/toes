@@ -14,12 +14,12 @@ columns its profiler needs, and a normalized row cannot be un-normalized.
 from __future__ import annotations
 
 import logging
-from io import StringIO
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from app.normalize import normalize_csv
 from app.schemas import ProductUpdate, UploadResponse
@@ -28,10 +28,12 @@ from app.storage import (
     get_categories,
     get_raw_rows,
     list_merchants,
+    patch_raw_rows,
     replace_catalog,
     replace_raw_rows,
     update_product,
 )
+from app.tabular import ACCEPT_ATTRIBUTE, UnreadableUpload, read_upload
 
 log = logging.getLogger(__name__)
 
@@ -50,11 +52,12 @@ async def upload_catalog(
         raise HTTPException(status_code=400, detail="CSV file is required")
 
     try:
-        raw = await file.read()
-        text = raw.decode("utf-8-sig")
-        df = pd.read_csv(StringIO(text))
-    except Exception as exc:  # pragma: no cover - defensive guard for malformed uploads
-        raise HTTPException(status_code=400, detail=f"Unable to parse CSV: {exc}") from exc
+        df = read_upload(await file.read(), file.filename)
+    except UnreadableUpload as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not read {file.filename!r} as a table ({ACCEPT_ATTRIBUTE}): {exc}",
+        ) from exc
 
     # Store the raw sheet FIRST, before normalization runs and regardless of what it does
     # to the data. The agent's whole premise depends on these columns surviving intact.
@@ -66,15 +69,29 @@ async def upload_catalog(
     )
 
     products, report = normalize_csv(df, merchant_id)
+
+    # ALWAYS reset the console's view, including to nothing (docs/CONTRACTS.md §1.3).
+    # Skipping this on a 422 is what let /catalog keep serving the PREVIOUS upload while
+    # /catalog/raw served this one: the console showed one catalog and the agent sold
+    # from another, and neither screen said anything was wrong.
+    replace_catalog(merchant_id, products if report.ok else [])
+
     if not report.ok:
         # The raw rows are already stored, so the agent can still work with this upload
-        # even when the console's normalization rejects it.
+        # even when the console's normalization rejects it. `raw` says so out loud.
         return JSONResponse(
             status_code=422,
-            content={"report": report.to_dict(), "products": []},
+            content={
+                "report": report.to_dict(),
+                "products": [],
+                "raw": {
+                    "merchant_id": merchant_id,
+                    "id_column": stored["id_column"],
+                    "row_count": stored["row_count"],
+                },
+            },
         )
 
-    replace_catalog(merchant_id, products)
     return {"report": report.to_dict(), "products": products}
 
 
@@ -105,6 +122,33 @@ async def get_catalog_raw(
 async def get_merchants():
     """Every merchant with raw rows stored. See docs/CONTRACTS.md §1.2."""
     return {"merchants": list_merchants()}
+
+
+class StockPatch(BaseModel):
+    """`{row_id: {column: new_value}}` — see docs/CONTRACTS.md §1.5.
+
+    The CALLER names the column, and that is the whole point. This service does not know
+    which of its columns means stock; deriving roles is the agent's job (§0), and a
+    merchant that guessed would be normalizing by the back door. It writes the value it
+    is handed into the cell it is told.
+    """
+
+    updates: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+@router.post("/catalog/{merchant_id}/stock")
+async def patch_stock(merchant_id: str, patch: StockPatch):
+    """Write new values into stored raw rows — how inventory follows a sale.
+
+    Unknown row ids are skipped rather than erroring, so a partially-stale cart still
+    applies the part that is real.
+    """
+    applied = patch_raw_rows(merchant_id, patch.updates)
+    if applied is None:
+        raise HTTPException(status_code=404, detail=f"unknown merchant_id {merchant_id!r}")
+
+    log.info("patched %d raw row(s) for %s", len(applied), merchant_id)
+    return {"updated": len(applied), "rows": applied}
 
 
 # --- the console's view -------------------------------------------------------

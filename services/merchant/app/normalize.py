@@ -57,6 +57,15 @@ COLUMN_ALIASES = {
     "quantity": "stock",
     "stock_quantity": "stock",
     "inventory": "stock",
+    # Spreadsheet headers merchants actually use. Only the console's own table reads
+    # these — the agent derives the stock role from the sheet itself and does not
+    # consult this list (docs/CONTRACTS.md §0).
+    "qty_on_hand": "stock",
+    "on_hand": "stock",
+    "qty_available": "stock",
+    "stock_on_hand": "stock",
+    "units_in_stock": "stock",
+    "in_stock": "stock",
     "image": "image_url",
     "image_url": "image_url",
     "img": "image_url",

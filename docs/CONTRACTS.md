@@ -65,6 +65,9 @@ The agent's only catalog read. Two modes, one endpoint.
   "merchant_id": "eyewear_co",
   "id_column": "sku",
   "row_count": 2,
+  "columns": ["sku", "Product Name", "RRP inc VAT", "qty_on_hand"],
+  "uploaded_at": "2026-08-30T09:14:02.881Z",
+  "source_filename": "autumn_range.xlsx",
   "rows": [
     { "sku": "SKU1", "Product Name": "...", "RRP inc VAT": "£129.00", "qty_on_hand": "4" }
   ]
@@ -87,6 +90,12 @@ Rules the merchant must hold:
   properly is the agent's job. Reference implementation: `_first_unique_column` in the
   agent's `stubs/mock_services.py`.
 - Unknown `merchant_id` → **404**.
+- **`columns`, `uploaded_at` and `source_filename`** describe the stored sheet, not the
+  slice returned: they stay the same whether or not `ids` filtered. `columns` is the
+  sheet's column order, which is the merchant console's only way to draw the merchant's
+  own spreadsheet back to them without inventing a shape for it. The agent ignores all
+  three. Added when the console stopped rendering a normalized nine-field table, which
+  could not show a sheet whose required columns did not map.
 
 **Consumer:** `app/clients/merchant.py` — `fetch_catalog()` (no `ids`) and `fetch_by_ids()`
 (with `ids`). `fetch_by_ids` is the most safety-critical call in the agent, because
@@ -108,8 +117,70 @@ unnoticed.
 
 ### 1.3 `GET /catalog` — the merchant's own view ✅
 
-Stays as it is: normalized nine-field products for the merchant console's product table.
-**Not an agent contract.** The agent must never read it.
+Normalized nine-field products. **Not an agent contract.** The agent must never read it.
+
+**One rule it must now hold: it may never describe a sheet that is no longer stored.**
+An upload whose required columns cannot be mapped returns 422 and normalizes to nothing.
+The old code left the previous upload's products in place, so `/catalog` kept serving
+*last week's sheet* while `/catalog/raw` served this week's — the console showed one
+catalog and the agent sold from another. An upload now always resets this view: to the
+normalized products when normalization succeeded, and to **empty** when it did not. An
+empty table is a merchant asking "where did my products go?"; a stale one is a merchant
+who never asks at all.
+
+The console therefore draws its product table from `/catalog/raw`, which cannot go stale
+and cannot fail to represent a sheet. `/catalog` remains for category and any consumer
+that wants the coerced shape.
+
+### 1.4 `POST /catalog/upload` ✅
+
+`multipart/form-data`: `merchant_id` and `file`.
+
+**Accepted formats:** `.csv`, `.tsv`, `.txt`, `.xlsx`, `.xls`. Excel is not a convenience
+— merchants keep catalogs in spreadsheets, and a service that only reads CSV makes
+"export to CSV first" a precondition for using the product at all. Parsing is by extension
+with a CSV fallback, so a mislabelled file still gets a chance rather than a 400.
+
+Two writes, in this order, and the order is the contract:
+
+1. **Raw rows are stored first**, before normalization runs and regardless of what it
+   does. The agent's whole premise depends on those columns surviving.
+2. **The console's normalized view is reset**, always — see §1.3.
+
+**Response — 200** `{report, products}` · **422** `{report, products: [], raw}` where
+`raw` is `{merchant_id, id_column, row_count}` for the rows that *were* stored. A 422 is a
+warning, not a dead end: the agent can sell from that sheet even when the console's
+normalizer cannot draw it.
+
+### 1.5 `POST /catalog/{merchant_id}/stock` ✅
+
+Writes new values into stored raw rows. This is how the shop's inventory follows a sale.
+
+```json
+{ "updates": { "SKU1": { "qty_on_hand": "3" } } }
+```
+
+**Response — 200** `{ "updated": 1, "rows": [ ... ] }` · unknown merchant → **404**.
+
+The **caller names the column**, and that is the whole point. The merchant does not know
+which of its columns means stock — deriving roles is the agent's job (§0), and a merchant
+that guessed would be normalizing by the back door. It writes the value it is handed into
+the cell it is told, and nothing else. Values are stored as strings, like every other raw
+value.
+
+Unknown row ids are skipped rather than erroring, so a partially-stale cart still applies
+the part that is real. `updated` is the count actually written.
+
+**Consumer:** `MerchantClient.adjust_stock()`, called by `confirm_and_pay` **after** the
+charge is captured. It is best-effort and never blocks a receipt: money has already moved,
+and failing to write inventory is a bookkeeping problem, not a payment one. The endpoint
+already existed in `stubs/mock_services.py` — this converges the real service onto the
+shape the stub had, which is the direction §5 requires.
+
+**On the index:** decrementing stock does not reindex. The index is a discovery snapshot
+(invariant 5) and price and stock are re-verified against these very rows immediately
+before every charge, so nothing unpurchasable can be sold. Search results may lag until
+the next `POST /catalog/sync/{merchant_id}`.
 
 ### 1.4 `GET /health` 🚧
 
@@ -121,12 +192,12 @@ Stays as it is: normalized nine-field products for the merchant console's produc
 using — today `DATABASE_URL` is captured at import time, so setting it late silently yields
 in-memory mode with no warning anywhere.
 
-### 1.5 Upload notification
+### 1.7 Upload notification
 
 `POST {agent}/ingest/analyze` — the merchant calls the agent after an upload completes.
 Fallback: the agent polls on a row hash. Either way the merchant does not wait on it.
 
-### 1.6 CORS
+### 1.8 CORS
 
 The merchant app has **no CORS middleware today** and the console is served from another
 origin. Phase 4c adds it. The agent already allows `*`.
@@ -367,6 +438,41 @@ name and is what the shopper sees — never `column`.
 > that hardcodes "screen size" breaks the core claim as surely as a backend that does. This
 > is the same rule the agent backend holds itself to: a test naming a specific product
 > attribute is a bug.
+
+### Checkout is its own POST — `POST /chat/checkout` ✅
+
+`{session_id}` → an SSE stream carrying `tool_start`, then `preview`, then `done`.
+
+**Why this exists.** The checkout button used to send the chat message *"I'm ready to
+check out. Show me the total."* and wait for the model to decide to call
+`preview_transaction`. That made a button press a request for a favour. The panel stayed
+shut whenever the model answered in prose instead, and — worse — it also stayed shut for
+every *legitimate* refusal, because `policy.available_tools` withdraws the preview tool
+when the basket is empty or a `required_before_purchase` field is unsettled. The shopper
+saw the same nothing either way.
+
+A preview is not a creative act. It is a deterministic function of the cart: re-verify,
+price, mint, show. So this endpoint runs `preview_transaction` **directly, with no model
+in the path**, and it either produces a preview or says exactly why it cannot.
+
+**Refusals**, all before the stream opens, all `detail: {code, message}`:
+
+| Status | Code | Meaning |
+|---|---|---|
+| 404 | `unknown_session` | no session; the shopper has not talked to the agent yet |
+| 409 | `empty_cart` | nothing to check out |
+| 409 | `checkout_blocked` | `policy.can_checkout` said no — message is its reason, verbatim |
+| 503 | `catalog_unavailable` | no index for this merchant |
+
+A tool failure *after* the stream opens (reverification, payments) arrives as a typed
+`error` event, exactly as it does on `/chat`.
+
+**This does not weaken the trust gate; it strengthens the symmetry.** Preview and charge
+are now both button-driven endpoints rather than one button and one hope. The gate has
+never been about who *asks* for a preview — a preview charges nothing. It is about
+`confirm_and_pay` being absent from the model's schema until `/chat/confirm` mints a
+token, and that is untouched. The model may still call `preview_transaction` itself
+mid-conversation; both paths converge on the same `PreviewEvent`.
 
 ### Confirmation is its own POST
 

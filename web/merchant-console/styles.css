@@ -511,6 +511,25 @@ td small {
   color: var(--red);
 }
 
+/* An empty cell in the merchant's own sheet. Shown rather than left blank, so a gap in
+   the data reads as a gap in the data and not as a rendering failure. */
+.muted {
+  color: var(--muted);
+}
+
+/* The sheet's own columns, so a wide catalog scrolls sideways inside the card instead
+   of stretching the page. */
+.table-wrap th {
+  white-space: nowrap;
+}
+
+.table-wrap td {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---- upload modal --------------------------------------------------------- */
 
 .modal-backdrop {

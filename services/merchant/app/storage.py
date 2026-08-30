@@ -293,6 +293,19 @@ def _load_raw(merchant_id: str) -> Optional[dict[str, Any]]:
     return _RAW.get(merchant_id)
 
 
+def _columns(rows: list[dict[str, Any]]) -> list[str]:
+    """The sheet's column order, union across rows so a ragged sheet loses nothing.
+
+    The console draws the merchant's own spreadsheet from this. Reading the keys of row
+    zero would silently drop a column that only later rows populate.
+    """
+    seen: dict[str, None] = {}
+    for row in rows:
+        for column in row:
+            seen.setdefault(column, None)
+    return list(seen)
+
+
 def get_raw_rows(
     merchant_id: str, ids: Optional[list[str]] = None
 ) -> Optional[dict[str, Any]]:
@@ -316,12 +329,106 @@ def get_raw_rows(
             lookup = {}
         rows = [lookup[i] for i in wanted if i in lookup]
 
+    # columns/uploaded_at/source_filename describe the STORED SHEET, not the slice
+    # returned: they are identical whether or not `ids` filtered (docs/CONTRACTS.md §1.1).
     return {
         "merchant_id": merchant_id,
         "id_column": id_column,
         "row_count": len(rows),
+        "columns": _columns(record["rows"]),
+        "uploaded_at": record.get("uploaded_at"),
+        "source_filename": record.get("source_filename"),
         "rows": rows,
     }
+
+
+def patch_raw_rows(
+    merchant_id: str, updates: dict[str, dict[str, Any]]
+) -> Optional[list[dict[str, Any]]]:
+    """Write values into stored raw rows. Returns the rows written, or None if unknown.
+
+    This is how the shop's inventory follows a sale (docs/CONTRACTS.md §1.5). The caller
+    names the column; this function does not interpret it. Values are stringified like
+    every other raw value, because the agent's coerce step is the only thing that parses.
+
+    The normalized `Product` view is kept in step where a row id matches one, so the
+    console's two reads never disagree about the same product.
+    """
+    record = _load_raw(merchant_id)
+    if record is None:
+        return None
+
+    rows = record["rows"]
+    id_column = record["id_column"]
+    if not id_column:
+        # Without an id column there is no way to say WHICH row to write, and writing the
+        # wrong row's stock is worse than writing none.
+        return []
+
+    lookup = {str(row.get(id_column)): row for row in rows if row.get(id_column) is not None}
+
+    applied: list[dict[str, Any]] = []
+    for row_id, changes in updates.items():
+        row = lookup.get(str(row_id))
+        if row is None:
+            continue
+        for column, value in changes.items():
+            row[str(column)] = None if value is None else str(value)
+        applied.append(row)
+
+    if not applied:
+        return []
+
+    # Persist the whole sheet back. replace_raw_rows would recompute id_column and
+    # uploaded_at, which would make a stock write look like a fresh upload — so the
+    # record is written directly, keeping both.
+    if _use_sql():
+        with Session(get_engine()) as session:
+            session.merge(RawRows(
+                merchant_id=merchant_id,
+                id_column=id_column,
+                rows=rows,
+                row_count=len(rows),
+                uploaded_at=record["uploaded_at"],
+                source_filename=record["source_filename"],
+            ))
+            session.commit()
+    else:
+        _RAW[merchant_id]["rows"] = rows
+
+    _sync_normalized(merchant_id, applied, id_column)
+    return applied
+
+
+def _sync_normalized(
+    merchant_id: str, rows: list[dict[str, Any]], id_column: str
+) -> None:
+    """Best-effort: keep the console's normalized view in step with a raw write.
+
+    The raw column is named whatever the merchant called it, so it is mapped through the
+    same aliases the upload path uses — `qty_on_hand` and `Stock Quantity` both land on
+    `stock`. Only `stock` and `price` are synced: they are the two fields a sale moves.
+
+    A value that does not parse is skipped. A raw sheet that says `"qty_on_hand": "sold
+    out"` leaves the normalized stock alone rather than writing a 0 nobody asked for.
+    """
+    # Imported here rather than at module scope: normalization is the console's concern
+    # and this is the only place the raw store touches it.
+    from app.normalize import COLUMN_ALIASES, _normalize_header
+
+    for row in rows:
+        product_id = str(row.get(id_column))
+        if get_product(merchant_id, product_id) is None:
+            continue
+        for column, value in row.items():
+            field = COLUMN_ALIASES.get(_normalize_header(str(column)))
+            if field not in ("stock", "price"):
+                continue
+            try:
+                parsed = int(float(value)) if field == "stock" else round(float(value), 2)
+            except (TypeError, ValueError):
+                continue
+            update_product(merchant_id, product_id, {field: parsed})
 
 
 def list_merchants() -> list[dict[str, Any]]:

@@ -44,7 +44,9 @@ class Settings(BaseSettings):
     max_probes_per_session: int = 4
     max_tool_rounds: int = 5
     preview_ttl_seconds: int = 300
-    search_min_results: int = 3
+    # Matched to the storefront's MAX_OPTIONS and to SEARCH_TOP_K: filter relaxation
+    # keeps widening until it has at least this many, so the panel fills.
+    search_min_results: int = 4
     search_top_k: int = 6
     session_ttl_seconds: int = 60 * 60 * 4
 

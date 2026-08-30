@@ -124,14 +124,19 @@ instruction is not a gate.
 1. **`confirm_and_pay` is absent from the model's tool list** until a valid confirmation
    token exists. Tool visibility is filtered per-turn. *Tool absence is the gate.*
 2. **A charge requires a prior `preview_transaction`**, which mints a `preview_id`, a hash of
-   the cart, and an expiry.
+   the cart, and an expiry. It may be reached two ways — the model calling the tool
+   mid-conversation, or `POST /chat/checkout`, which runs it directly with no model in the
+   path. Both converge on the same `PreviewEvent`. A preview charges nothing, so which of
+   them produced it is a reliability question, not a trust one; the gate is invariant 1.
 3. **Confirmation arrives as a separate HTTP POST** (`/chat/confirm`), never inferred from
    chat text. No amount of typing "yes buy it" may fire a charge.
 4. **Cart-change invalidation.** On confirm the cart hash is recomputed; if it differs from
    the previewed hash, the charge is rejected and a fresh preview is forced.
 5. **The index is for discovery only.** Price and stock are re-verified against the merchant
    backend immediately before every preview. This makes `fetch_by_ids` the most
-   safety-critical call in the agent.
+   safety-critical call in the agent. After a charge captures, the quantity sold is written
+   back to the merchant's stored rows — best-effort, never blocking a receipt, since the
+   money has already moved.
 6. **Never recommend an out-of-stock item.** `stock > 0` is a default hard filter.
 7. **No domain authority the merchant did not approve.** The agent explains what a field
    *means*; it never asserts fitness for a medical, safety or regulatory purpose. Cross-field

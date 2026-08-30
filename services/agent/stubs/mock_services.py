@@ -48,10 +48,26 @@ def _now() -> datetime:
 class Catalog:
     """Raw rows exactly as uploaded, indexed by whichever column looks like the id."""
 
-    def __init__(self, merchant_id: str, rows: list[dict], id_column: str | None):
+    def __init__(
+        self,
+        merchant_id: str,
+        rows: list[dict],
+        id_column: str | None,
+        source_filename: str | None = None,
+    ):
         self.merchant_id = merchant_id
         self.rows = rows
         self.id_column = id_column
+        self.source_filename = source_filename
+        self.uploaded_at = _now().isoformat()
+
+    def columns(self) -> list[str]:
+        """Union across rows, so a ragged sheet loses nothing. See CONTRACTS.md §1.1."""
+        seen: dict[str, None] = {}
+        for row in self.rows:
+            for column in row:
+                seen.setdefault(column, None)
+        return list(seen)
 
     def index(self) -> dict[str, dict]:
         if not self.id_column:
@@ -93,7 +109,9 @@ def load_catalogs() -> dict[str, Catalog]:
             for record in table.df.where(table.df.notna(), None).to_dict(orient="records")
         ]
         merchant_id = path.stem
-        catalogs[merchant_id] = Catalog(merchant_id, rows, _first_unique_column(rows))
+        catalogs[merchant_id] = Catalog(
+            merchant_id, rows, _first_unique_column(rows), source_filename=path.name
+        )
         log.info("loaded catalog %s (%d rows)", merchant_id, len(rows))
 
     return catalogs
@@ -151,10 +169,15 @@ async def catalog(
     else:
         rows = entry.rows
 
+    # columns/uploaded_at/source_filename describe the STORED SHEET, not the slice
+    # returned — identical whether or not `ids` filtered (docs/CONTRACTS.md §1.1).
     return {
         "merchant_id": merchant_id,
         "id_column": entry.id_column,
         "row_count": len(rows),
+        "columns": entry.columns(),
+        "uploaded_at": entry.uploaded_at,
+        "source_filename": entry.source_filename,
         "rows": rows,
     }
 

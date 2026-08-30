@@ -16,6 +16,9 @@ dev = [
     "pytest>=9",
     "pytest-asyncio>=1.4",
     "httpx>=0.28",
+    # To WRITE an .xlsx, so the upload seam can be tested with the format merchants
+    # actually use. Nothing here reads one — that is the merchant service's job.
+    "openpyxl>=3.1",
 ]
 
 [tool.pytest.ini_options]

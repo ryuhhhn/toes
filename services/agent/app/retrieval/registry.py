@@ -109,12 +109,53 @@ class IndexRegistry:
         log.info("cold-started a bootstrap profile for %s", merchant_id)
         return result.profile
 
+    @staticmethod
+    def _describes(profile: AgentProfile, rows: list[dict]) -> bool:
+        """Does this profile's role mapping still fit the sheet the merchant is serving?
+
+        A profile maps roles onto columns BY NAME, and those names came from whatever
+        sheet was uploaded when it was derived. Upload a differently shaped one and every
+        such name can vanish — yet nothing about rebuilding the index notices: it
+        re-coerces the new rows and then filters them on columns that are not there.
+        Search returns zero matches for a shop full of stock, and the only visible
+        symptom is an agent that says it has nothing.
+
+        Only the roles that must exist are checked. `stock` or `image` going missing is a
+        thinner catalog; `id`, `title` or `price` going missing means this profile is
+        about a different spreadsheet.
+        """
+        if not rows:
+            return True  # nothing to disagree with
+
+        columns = {str(c) for row in rows for c in row}
+        required = [profile.roles.id, profile.roles.title, profile.roles.price]
+        return all(column in columns for column in required if column)
+
     async def _build(self, merchant_id: str, profile: AgentProfile) -> CatalogIndex | None:
         try:
             rows = await get_merchant_client().fetch_catalog(merchant_id)
         except MerchantUnavailable as exc:
             log.error("cannot build index for %s: %s", merchant_id, exc)
             return None
+
+        if not self._describes(profile, rows):
+            # Indexing against a profile that names columns this sheet does not have
+            # would produce a searchable index nothing can be found in. Re-derive, the
+            # same way a cold start does, and say so in the notes: the merchant is
+            # looking at a profile no human has approved for THIS sheet.
+            log.warning(
+                "profile v%s for %s names columns this catalog does not have; re-deriving",
+                profile.version, merchant_id,
+            )
+            store = get_profile_store()
+            rederived = analyze_rows(rows, merchant_id=merchant_id).profile
+            rederived.version = store.next_version(merchant_id)
+            rederived.notes.append(
+                "info: re-derived automatically because the uploaded sheet's columns "
+                "changed, and not yet approved by the merchant."
+            )
+            store.save(rederived)
+            profile = rederived
 
         # Re-run coercion so the index holds typed values, not the merchant's raw strings.
         analysed = analyze_rows(rows, merchant_id=merchant_id, version=profile.version)

@@ -1,9 +1,16 @@
-"""POST /chat (SSE) and POST /chat/confirm.
+"""POST /chat (SSE), POST /chat/checkout and POST /chat/confirm.
 
 Confirmation is a separate HTTP request by design (invariant 3). It is not a message, not
 a tool argument, and not something the model can infer from the shopper typing "yes" — it
 is a button press that arrives on its own endpoint, mints a single-use token, and only
 then makes the charging tool visible to the model at all.
+
+Checkout is a separate request for a different reason. A preview charges nothing, so it
+was never a trust question — it was a reliability one. The button used to send the chat
+message "I'm ready to check out" and hope the model called `preview_transaction`, which
+made a button press a request for a favour, and left the panel shut with no explanation
+whenever the model answered in prose or the tool had been withdrawn by policy. A preview
+is a deterministic function of the cart, so /chat/checkout computes one directly.
 """
 
 from __future__ import annotations
@@ -16,13 +23,16 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.agent.events import ErrorEvent, Event
+from app.agent.events import DoneEvent, ErrorEvent, Event, ToolStartEvent
 from app.agent.loop import run_turn
+from app.agent.policy import can_checkout
 from app.audit import record
 from app.clients.payment import PaymentError, get_payment_client
 from app.retrieval.registry import get_registry
 from app.session.models import ConfirmationToken, Session, new_id
 from app.session.store import get_session_store
+from app.tools.preview_transaction import preview_transaction, reverify_cart
+from app.tools.registry import ToolContext
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +52,10 @@ class ChatRequest(BaseModel):
     message: str
     merchant_id: str
     session_id: str | None = None
+
+
+class CheckoutRequest(BaseModel):
+    session_id: str
 
 
 class ConfirmRequest(BaseModel):
@@ -116,6 +130,75 @@ async def chat(request: ChatRequest) -> StreamingResponse:
     return StreamingResponse(stream(), media_type="text/event-stream", headers=SSE_HEADERS)
 
 
+@router.post("/chat/checkout")
+async def checkout(request: CheckoutRequest) -> StreamingResponse:
+    """The checkout button. A preview, computed — not requested of a model.
+
+    Everything that can refuse does so BEFORE the stream opens, as an HTTP error with a
+    code the storefront can render. That is the whole point: the old path could not tell
+    "the model chose not to" apart from "the merchant requires a size first", and showed
+    the shopper the same nothing for both.
+
+    This does not weaken the trust gate. `confirm_and_pay` is still absent from the
+    model's schema until POST /chat/confirm mints a token, and this endpoint mints
+    nothing and charges nothing.
+    """
+    session = await get_session_store().get(request.session_id)
+    if session is None:
+        raise HTTPException(
+            404,
+            {
+                "code": "unknown_session",
+                "message": "This session has expired. Say hello again and I will pick up "
+                "where we left off.",
+            },
+        )
+
+    index = await get_registry().get(session.merchant_id)
+    if index is None:
+        raise HTTPException(
+            503,
+            {
+                "code": "catalog_unavailable",
+                "message": "The catalogue is unavailable, so I cannot price a basket "
+                "right now.",
+            },
+        )
+
+    if not session.cart.items:
+        raise HTTPException(
+            409,
+            {
+                "code": "empty_cart",
+                "message": "Your basket is empty — add something first and I will total "
+                "it up.",
+            },
+        )
+
+    # The merchant's own required_before_purchase rules, reported rather than silently
+    # withdrawing the tool the way the model-driven path did.
+    allowed, reason = can_checkout(session, index.profile)
+    if not allowed:
+        raise HTTPException(409, {"code": "checkout_blocked", "message": reason})
+
+    async def stream() -> AsyncIterator[str]:
+        yield ToolStartEvent(
+            tool="preview_transaction", summary="Checking live prices and stock"
+        ).sse()
+
+        ctx = ToolContext(session=session, profile=index.profile, index=index)
+        result = await preview_transaction({}, ctx)
+
+        # A failure after this point (reverification, payments) is a typed error event,
+        # exactly as it is on /chat.
+        for event in result.events:
+            yield event.sse()
+        yield DoneEvent(turn_id=new_id("turn")).sse()
+        await get_session_store().save(session)
+
+    return StreamingResponse(stream(), media_type="text/event-stream", headers=SSE_HEADERS)
+
+
 @router.post("/chat/confirm")
 async def confirm(request: ConfirmRequest) -> StreamingResponse:
     """The button press. Validates, authorises, mints a token, re-enters the loop."""
@@ -143,9 +226,6 @@ async def confirm(request: ConfirmRequest) -> StreamingResponse:
     # deciding" happens. Abort cleanly rather than charging for something unavailable.
     index_for_check = await get_registry().get(session.merchant_id)
     if index_for_check is not None:
-        from app.tools.preview_transaction import reverify_cart
-        from app.tools.registry import ToolContext
-
         problems = await reverify_cart(
             ToolContext(
                 session=session, profile=index_for_check.profile, index=index_for_check

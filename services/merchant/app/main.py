@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.db.database import create_schema, describe_storage, init_engine, storage_mode
 from app.normalize import normalize_csv
 from app.storage import list_merchants, replace_catalog, replace_raw_rows
+from app.tabular import read_upload
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +34,9 @@ def _seed_catalog() -> None:
         return
 
     try:
-        df = pd.read_csv(SEED_CSV)
+        # Through the same reader the upload route uses, so the seed can never be parsed
+        # differently from a sheet a merchant actually uploads.
+        df = read_upload(SEED_CSV.read_bytes(), SEED_CSV.name)
     except Exception:
         log.exception("seed skipped: could not read %s", SEED_CSV)
         return
@@ -44,8 +47,7 @@ def _seed_catalog() -> None:
     )
 
     products, report = normalize_csv(df, SEED_MERCHANT_ID)
-    if report.ok:
-        replace_catalog(SEED_MERCHANT_ID, products)
+    replace_catalog(SEED_MERCHANT_ID, products if report.ok else [])
 
     log.info(
         "seeded %s: %d raw rows (id_column=%s), %d normalized products",

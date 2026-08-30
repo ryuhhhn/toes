@@ -15,10 +15,66 @@ import logging
 
 from app.agent.events import ReceiptEvent
 from app.audit import record
+from app.clients.merchant import MerchantUnavailable, get_merchant_client
 from app.clients.payment import PaymentError, get_payment_client
 from app.tools.registry import ToolContext, ToolResult, object_schema, tool
 
 log = logging.getLogger(__name__)
+
+
+async def _decrement_stock(ctx: ToolContext, items) -> None:
+    """Take what was just sold out of the merchant's stock. Best-effort, always.
+
+    Without this the shop never learns it made a sale: the merchant console shows the
+    stock the spreadsheet was uploaded with, forever, and a one-of-a-kind item stays
+    buyable by the next shopper until somebody re-uploads by hand.
+
+    Three things make this safe to run after the charge rather than before it:
+
+    - The charge has ALREADY been captured. Money moved. A failed inventory write is a
+      bookkeeping problem, and raising here would turn it into a lost receipt — so every
+      failure is logged and swallowed.
+    - We send ABSOLUTE values, not deltas, computed from rows read moments earlier. The
+      merchant writes cells; it does no arithmetic and holds no notion of stock (§0).
+    - Stock is re-verified against these same rows immediately before every charge
+      (invariant 5), so a value that races another sale cannot let one through.
+    """
+    stock_column = ctx.profile.roles.stock
+    if not stock_column:
+        return  # this catalogue does not track stock; nothing to write
+
+    client = get_merchant_client()
+    merchant_id = ctx.session.merchant_id
+    ids = [item.id for item in items]
+
+    try:
+        live = await client.fetch_by_ids(merchant_id, ids)
+    except MerchantUnavailable as exc:
+        log.warning("stock writeback skipped for %s: %s", merchant_id, exc)
+        return
+
+    updates: dict[str, dict[str, object]] = {}
+    for item in items:
+        row = live.get(item.id)
+        if row is None:
+            continue
+        try:
+            remaining = float(row.get(stock_column))
+        except (TypeError, ValueError):
+            # A stock cell we cannot read is one we must not overwrite: "in stock" and
+            # "sold out" are legitimate values in a merchant's own spreadsheet.
+            continue
+        new_value = max(0, int(remaining) - item.quantity)
+        updates[item.id] = {stock_column: str(new_value)}
+
+    if not updates:
+        return
+
+    try:
+        written = await client.adjust_stock(merchant_id, updates)
+        log.info("stock writeback: %d row(s) for %s", written, merchant_id)
+    except MerchantUnavailable as exc:
+        log.warning("stock writeback failed for %s: %s", merchant_id, exc)
 
 
 @tool(
@@ -98,6 +154,10 @@ async def confirm_and_pay(args: dict, ctx: ToolContext) -> ToolResult:
         currency=currency,
         outcome="captured",
     )
+
+    # After the money, before the receipt: the shop should not still be advertising what
+    # it just sold. Never raises — see _decrement_stock.
+    await _decrement_stock(ctx, preview.items)
 
     session.cart.items.clear()
     session.active_preview = None

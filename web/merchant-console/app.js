@@ -26,10 +26,6 @@
         ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
     );
 
-  let allProducts = [];
-  let page = 0;
-  const perPage = 8;
-
   // --- navigation ------------------------------------------------------------
 
   const TITLES = {
@@ -48,71 +44,141 @@
     );
     $("#page-title").textContent = TITLES[name] || name;
     if (name === "review") window.ToesReview.load();
+    if (name === "catalog") loadCatalog({ quiet: true });
+    syncPolling();
   }
 
   $$(".nav-item").forEach((b) => (b.onclick = () => showView(b.dataset.view)));
 
   // --- the catalog table -----------------------------------------------------
 
-  /* The console's own normalized view. Deliberately tolerant about field names:
-   * this table is a merchant convenience, and it must not become a second place
-   * that decides what a product "is". */
-  async function loadCatalog() {
+  /* The table renders GET /catalog/raw: the merchant's own sheet, stored verbatim, and
+   * the exact rows the agent sells from. Three things were wrong with reading the
+   * normalized GET /catalog instead, and all three surfaced as "my product list is out
+   * of date":
+   *
+   *  1. Normalization is all-or-nothing. A sheet whose id/title/price columns could not
+   *     be mapped normalized to NOTHING, and the old backend then left the PREVIOUS
+   *     upload's products in place — so this screen showed last week's catalog while the
+   *     agent sold from this week's, and nothing anywhere said so.
+   *  2. Rows failing a per-row check (an unparseable price) were dropped silently, so
+   *     the count here could be lower than the catalog really is.
+   *  3. It coerced everything into nine fixed fields, so a merchant could not see their
+   *     own columns.
+   *
+   * Headers therefore come from the sheet. No column name is hardcoded here — the same
+   * rule the storefront and the agent backend hold themselves to. */
+
+  let columns = [];
+  let allRows = [];
+  let signature = null;
+  let page = 0;
+  const perPage = 8;
+
+  async function fetchCatalog() {
+    const res = await fetch(
+      `${MERCHANT_BASE}/catalog/raw?merchant_id=${encodeURIComponent(MERCHANT_ID)}`,
+    );
+    // 404 is a merchant with nothing uploaded yet. That is a state, not a failure.
+    if (res.status === 404) return { rows: [], columns: [], row_count: 0 };
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  /* Cheap change detection, so a poll that found nothing new does not blow away the
+   * merchant's search box, page or scroll position. */
+  const signatureOf = (d) =>
+    [
+      d.row_count,
+      d.uploaded_at || "",
+      (d.columns || []).join(""),
+      JSON.stringify(d.rows || []).length,
+    ].join("|");
+
+  async function loadCatalog({ quiet = false } = {}) {
     const body = $("#product-rows");
-    body.innerHTML = `<tr><td colspan="5" class="table-note">Loading your catalog…</td></tr>`;
+    if (!quiet && !allRows.length) {
+      body.innerHTML = `<tr><td class="table-note">Loading your catalog…</td></tr>`;
+    }
+
+    let data;
     try {
-      const res = await fetch(
-        `${MERCHANT_BASE}/catalog?merchant_id=${encodeURIComponent(MERCHANT_ID)}`,
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      allProducts = Array.isArray(data) ? data : data.products || data.rows || [];
+      data = await fetchCatalog();
     } catch (err) {
-      allProducts = [];
-      body.innerHTML = `<tr><td colspan="5" class="table-note error">
+      // A failed poll must not wipe a table that is still correct.
+      if (quiet) return;
+      allRows = [];
+      columns = [];
+      signature = null;
+      body.innerHTML = `<tr><td class="table-note error">
         Could not reach the merchant service at ${escapeHtml(MERCHANT_BASE)} — ${escapeHtml(
           err.message,
         )}</td></tr>`;
       $("#total-products").textContent = "—";
       $("#product-count").textContent = "catalog unavailable";
+      $("#synced-sub").textContent = "not reachable";
       return;
     }
-    page = 0;
-    renderCatalog();
-    loadProfileSummary();
+
+    const next = signatureOf(data);
+    if (next !== signature) {
+      signature = next;
+      allRows = data.rows || [];
+      columns = (data.columns || []).length
+        ? data.columns
+        : [...new Set(allRows.flatMap((r) => Object.keys(r)))];
+      if (page * perPage >= allRows.length) page = 0;
+      renderCatalog();
+      loadProfileSummary();
+    }
+
+    $("#source-sub").textContent = data.source_filename
+      ? `from ${data.source_filename}`
+      : "stored as raw rows, served untouched";
+    $("#synced-sub").textContent = `checked ${new Date().toLocaleTimeString()}`;
   }
 
   function renderCatalog() {
     const q = $("#search").value.trim().toLowerCase();
     const list = q
-      ? allProducts.filter((p) => JSON.stringify(p).toLowerCase().includes(q))
-      : allProducts;
+      ? allRows.filter((r) =>
+          Object.values(r).some((v) => String(v ?? "").toLowerCase().includes(q)),
+        )
+      : allRows;
 
     const shown = list.slice(page * perPage, page * perPage + perPage);
+    const span = Math.max(columns.length, 1);
     const body = $("#product-rows");
 
+    $("#product-head").innerHTML = columns
+      .map((c) => `<th>${escapeHtml(c)}</th>`)
+      .join("");
+
     if (!shown.length) {
-      body.innerHTML = `<tr><td colspan="5" class="table-note">${
-        allProducts.length ? "Nothing matches that search." : "No products yet — upload a CSV to begin."
+      body.innerHTML = `<tr><td colspan="${span}" class="table-note">${
+        allRows.length
+          ? "Nothing matches that search."
+          : "No products yet — upload a spreadsheet to begin."
       }</td></tr>`;
     } else {
       body.innerHTML = shown
         .map(
-          (p) => `<tr>
-            <td><strong>${escapeHtml(p.name ?? p.title ?? "—")}</strong></td>
-            <td>${escapeHtml(p.sku ?? p.product_id ?? p.id ?? "—")}</td>
-            <td>${p.category ? `<span class="tag">${escapeHtml(p.category)}</span>` : "—"}</td>
-            <td>${p.price != null ? escapeHtml(p.price) : "—"}</td>
-            <td>${p.stock != null ? escapeHtml(p.stock) : "—"}</td>
-          </tr>`,
+          (row) =>
+            `<tr>${columns
+              .map((c) => {
+                const v = row[c];
+                const blank = v === null || v === undefined || v === "";
+                return `<td>${blank ? '<span class="muted">—</span>' : escapeHtml(v)}</td>`;
+              })
+              .join("")}</tr>`,
         )
         .join("");
     }
 
-    $("#total-products").textContent = allProducts.length;
-    $("#product-count").textContent = `${list.length} product${
+    $("#total-products").textContent = allRows.length;
+    $("#product-count").textContent = `${list.length} row${
       list.length === 1 ? "" : "s"
-    } in your catalog`;
+    } · ${columns.length} column${columns.length === 1 ? "" : "s"}`;
     const from = list.length ? page * perPage + 1 : 0;
     $("#page-label").textContent = `Showing ${from}–${Math.min(
       (page + 1) * perPage,
@@ -146,8 +212,40 @@
     }
   }
 
+  /* Kept current without being asked. A sale decrements stock in the merchant's raw
+   * rows, and a colleague may upload from another tab — neither of which this screen
+   * would otherwise ever hear about.
+   *
+   * Polling is suspended while the tab is hidden or another view is open, so a console
+   * left open overnight is not still hammering the service in the morning. A hidden tab
+   * refreshes the moment it comes back rather than waiting out the interval. */
+  const POLL_MS = 10000;
+  let poller = null;
+
+  const pollingShouldRun = () =>
+    document.visibilityState === "visible" &&
+    !$("#catalog-view").classList.contains("hidden");
+
+  function syncPolling() {
+    if (pollingShouldRun()) {
+      if (poller === null) {
+        poller = setInterval(() => loadCatalog({ quiet: true }), POLL_MS);
+      }
+    } else if (poller !== null) {
+      clearInterval(poller);
+      poller = null;
+    }
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    syncPolling();
+    if (pollingShouldRun()) loadCatalog({ quiet: true });
+  });
+
   const reload = document.querySelector("#reload-review");
   if (reload) reload.onclick = () => window.ToesReview.load();
+
+  $("#refresh-catalog").onclick = () => loadCatalog();
 
   $("#search").oninput = () => {
     page = 0;
@@ -209,8 +307,14 @@
 
   function pickFile(file) {
     if (!file) return;
-    if (!/\.csv$/i.test(file.name)) {
-      say("error", "That is not a CSV. Choose a .csv file to continue.");
+    // Merchants keep catalogs in spreadsheets. Insisting on CSV made "export to CSV
+    // first" a precondition for using the product at all — and the backend reads all
+    // of these, so refusing them here was the console inventing a limit of its own.
+    if (!/\.(csv|tsv|txt|xlsx|xls)$/i.test(file.name)) {
+      say(
+        "error",
+        "Choose an Excel file (.xlsx, .xls) or a delimited file (.csv, .tsv, .txt).",
+      );
       return;
     }
     pickedFile = file;
@@ -276,10 +380,12 @@
 
   $("#done-close").onclick = () => {
     closeModal();
+    signature = null;
     loadCatalog();
   };
   $("#done-review").onclick = () => {
     closeModal();
+    signature = null;
     loadCatalog();
     showView("review");
   };
@@ -303,9 +409,13 @@
       });
       report = await res.json();
       // A sheet the console's normalizer rejects is still stored as raw rows and is
-      // still usable by the agent, so a 422 here is a warning, not a dead end.
+      // still usable by the agent, so a 422 here is a warning, not a dead end. The
+      // table below reads those raw rows, so it shows this upload either way.
       if (!res.ok && res.status !== 422) {
-        throw new Error(report.detail || `HTTP ${res.status}`);
+        const detail = report.detail;
+        throw new Error(
+          (typeof detail === "string" ? detail : detail?.message) || `HTTP ${res.status}`,
+        );
       }
     } catch (err) {
       say("error", `Upload failed: ${escapeHtml(err.message)}`);
@@ -315,7 +425,10 @@
       return;
     }
 
-    const stored = report.rows_stored ?? report.received ?? "?";
+    // The row count lives on the report, or on `raw` when normalization rejected the
+    // sheet. The old code read `rows_stored`/`received`, neither of which this endpoint
+    // has ever returned, so this line said "Stored ? rows" on every single upload.
+    const stored = report.raw?.row_count ?? report.report?.rows_in ?? "?";
     progress(2, `Stored <strong>${escapeHtml(stored)}</strong> rows.`);
 
     // 2. The agent derives a profile from those raw rows.
@@ -345,6 +458,7 @@
         .join("");
       $("#upload-form").classList.add("hidden");
       $("#upload-done").classList.remove("hidden");
+      signature = null;
       loadCatalog();
     } catch (err) {
       say(
@@ -359,4 +473,5 @@
   }
 
   loadCatalog();
+  syncPolling();
 })();

@@ -1298,6 +1298,16 @@ body {
   cursor: not-allowed;
 }
 
+/* Locked for the duration of a turn. `send()` drops anything sent while one is open,
+   so a control that still looked live and ate the click read as a broken backend. */
+.checkout:disabled,
+#composer button:disabled,
+.chips button:disabled,
+.chip-option:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
 .demo-only {
   display: block;
   text-align: center;

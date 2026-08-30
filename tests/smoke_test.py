@@ -19,6 +19,7 @@ Skips cleanly when the services are not up, so it can sit in CI before CI has th
 
 from __future__ import annotations
 
+import io
 import os
 import uuid
 
@@ -294,6 +295,120 @@ async def test_confirm_is_its_own_endpoint(client):
         json={"session_id": "does-not-exist", "preview_id": "nope"},
     )
     assert r.status_code == 404
+
+
+@requires_stack
+async def test_excel_uploads_reach_the_agent_unchanged(client):
+    """Merchants keep catalogs in spreadsheets, and the upload route read only CSV.
+
+    A seam test, not a parsing test: the assertion is that a column named in an .xlsx
+    arrives at the agent with its spaces and casing intact, which is the thing the
+    profiler needs and the thing a normalizing upload path would have destroyed.
+    """
+    from openpyxl import Workbook
+
+    merchant_id = f"{MERCHANT_ID}_xl"
+    workbook = Workbook()
+    sheet = workbook.active
+    for row in (
+        ["Item Ref", "Product Name", "RRP inc VAT", "qty on hand"],
+        ["X-1", "Widget", "129.00", "4"],
+        ["X-2", "Gadget", "59.00", "2"],
+    ):
+        sheet.append(row)
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+
+    r = client.post(
+        f"{MERCHANT}/catalog/upload",
+        files={"file": ("autumn.xlsx", buffer.getvalue(), "application/vnd.ms-excel")},
+        data={"merchant_id": merchant_id},
+    )
+    assert r.status_code in (200, 422), r.text
+
+    body = client.get(f"{MERCHANT}/catalog/raw", params={"merchant_id": merchant_id}).json()
+    assert body["row_count"] == 2
+    assert body["columns"] == ["Item Ref", "Product Name", "RRP inc VAT", "qty on hand"]
+    assert body["source_filename"] == "autumn.xlsx"
+    for value in body["rows"][0].values():
+        assert value is None or isinstance(value, str), f"{value!r} was coerced"
+
+
+@requires_stack
+async def test_console_view_never_describes_a_sheet_that_is_gone(client):
+    """The console read GET /catalog while the agent read GET /catalog/raw. When
+    normalization refused a sheet, the first kept serving the PREVIOUS upload — one
+    screen showing a catalog the other was not selling."""
+    merchant_id = f"{MERCHANT_ID}_stale"
+
+    good = b"id,title,price\nP1,First,10.00\nP2,Second,20.00\n"
+    r = client.post(
+        f"{MERCHANT}/catalog/upload",
+        files={"file": ("good.csv", good, "text/csv")},
+        data={"merchant_id": merchant_id},
+    )
+    assert r.status_code == 200, r.text
+    assert len(client.get(f"{MERCHANT}/catalog", params={"merchant_id": merchant_id}).json()) == 2
+
+    bad = b"reference,heading,cost_ex_vat\nR1,Something,12\n"
+    r = client.post(
+        f"{MERCHANT}/catalog/upload",
+        files={"file": ("bad.csv", bad, "text/csv")},
+        data={"merchant_id": merchant_id},
+    )
+    assert r.status_code == 422
+
+    assert client.get(f"{MERCHANT}/catalog", params={"merchant_id": merchant_id}).json() == []
+    raw = client.get(f"{MERCHANT}/catalog/raw", params={"merchant_id": merchant_id}).json()
+    assert raw["row_count"] == 1 and raw["rows"][0]["heading"] == "Something"
+
+
+@requires_stack
+async def test_checkout_is_a_button_not_a_request_for_a_favour(client):
+    """POST /chat/checkout must refuse with a CODE, never with silence.
+
+    The old path sent a chat message and hoped the model called preview_transaction.
+    An empty basket withdrew the tool, the model said something vague, and the checkout
+    panel simply never opened — indistinguishable from a broken backend.
+    """
+    r = client.post(f"{AGENT}/chat/checkout", json={"session_id": "does-not-exist"})
+    assert r.status_code == 404
+    assert r.json()["detail"]["code"] == "unknown_session"
+
+    started = client.post(
+        f"{AGENT}/chat", json={"message": "hello", "merchant_id": MERCHANT_ID}
+    )
+    session_id = next(p["session_id"] for t, p in _sse(started) if t == "session")
+
+    r = client.post(f"{AGENT}/chat/checkout", json={"session_id": session_id})
+    assert r.status_code == 409
+    detail = r.json()["detail"]
+    assert detail["code"] == "empty_cart"
+    assert detail["message"], "a refusal the shopper cannot read is still silence"
+
+
+@requires_stack
+async def test_the_merchant_accepts_a_stock_write(client):
+    """The seam that lets a sale reach the shop. The agent names the column, because
+    the merchant does not know which of its columns means stock."""
+    body = client.get(f"{MERCHANT}/catalog/raw", params={"merchant_id": MERCHANT_ID}).json()
+    row = body["rows"][0]
+    sku = row[body["id_column"]]
+
+    r = client.post(
+        f"{MERCHANT}/catalog/{MERCHANT_ID}/stock",
+        json={"updates": {sku: {"qty_on_hand": "7"}}},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["updated"] == 1
+
+    after = client.get(
+        f"{MERCHANT}/catalog/raw", params={"merchant_id": MERCHANT_ID, "ids": sku}
+    ).json()
+    assert after["rows"][0]["qty_on_hand"] == "7"
+    # A stock write is not a new upload: the console reads uploaded_at as "when did my
+    # sheet last change", and moving it would report a sale as a re-import.
+    assert after["uploaded_at"] == body["uploaded_at"]
 
 
 @requires_stack

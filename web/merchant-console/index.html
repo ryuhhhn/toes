@@ -40,24 +40,28 @@
       <div class="page-intro">
         <div>
           <h2>Your product catalog</h2>
-          <p>Keep your catalog current so your shopping agent can give customers the right answers.</p>
+          <p>This is your uploaded sheet exactly as stored — the same rows your shopping agent sells from. It refreshes itself.</p>
         </div>
-        <button class="primary" id="open-upload">＋ Upload CSV</button>
+        <button class="primary" id="open-upload">＋ Upload catalog</button>
       </div>
       <div class="stats">
-        <div><span>Total products</span><strong id="total-products">—</strong><small>stored as raw rows, served untouched</small></div>
-        <div><span>Catalog status</span><strong class="status-pill"><i></i> Live</strong><small>the agent reads this catalog directly</small></div>
+        <div><span>Total products</span><strong id="total-products">—</strong><small id="source-sub">stored as raw rows, served untouched</small></div>
+        <div><span>Catalog status</span><strong class="status-pill"><i></i> Live</strong><small id="synced-sub">the agent reads this catalog directly</small></div>
         <div><span>Product category</span><strong id="category-stat">—</strong><small id="category-sub">derived by the agent</small></div>
       </div>
       <div class="table-card">
         <div class="table-toolbar">
           <div><h3>All products</h3><p id="product-count">loading…</p></div>
           <label class="search"><span>⌕</span><input id="search" placeholder="Search products" /></label>
-          <button class="secondary" id="replace-upload">↻ Replace catalog</button>
+          <button class="secondary" id="refresh-catalog" title="Re-read the catalog now">↻ Refresh</button>
+          <button class="secondary" id="replace-upload">↑ Replace catalog</button>
         </div>
+        <!-- Header cells are written from the sheet's own columns. A fixed
+             Product/SKU/Category/Price/Stock header could only ever draw a catalog
+             shaped like the one it was written for. -->
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Product</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock</th></tr></thead>
+            <thead><tr id="product-head"></tr></thead>
             <tbody id="product-rows"></tbody>
           </table>
         </div>
@@ -114,13 +118,13 @@
         <div class="modal-icon">↑</div>
         <span class="eyebrow">CATALOG IMPORT</span>
         <h2>Upload your product catalog</h2>
-        <p>Pick a CSV, check it below, then press <strong>Ingest catalog</strong>. Nothing is sent until you do.</p>
+        <p>Pick an Excel file or CSV, check it below, then press <strong>Ingest catalog</strong>. Nothing is sent until you do.</p>
 
         <label class="dropzone" id="dropzone">
-          <input type="file" id="file-input" accept=".csv,text/csv">
+          <input type="file" id="file-input" accept=".csv,.tsv,.txt,.xlsx,.xls">
           <span class="upload-cloud">↥</span>
-          <strong>Choose a CSV file</strong>
-          <small>or drag and drop here · Max 10 MB</small>
+          <strong>Choose a spreadsheet</strong>
+          <small>Excel or CSV · drag and drop here · Max 10 MB</small>
         </label>
 
         <div class="file-picked hidden" id="file-picked">

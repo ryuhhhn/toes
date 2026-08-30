@@ -201,7 +201,9 @@
           money(p.price, p.currency),
         )}</span></div>
       </div>
-      <button class="add" data-id="${esc(p.id)}" ${p.in_stock ? "" : "disabled"}>
+      <button class="add" data-id="${esc(p.id)}" ${
+        p.in_stock ? "" : 'disabled data-unavailable="1"'
+      }>
         ${p.in_stock ? "Add to basket" : "Unavailable"}
       </button>
     </article>`;
@@ -244,6 +246,9 @@
       .querySelectorAll(".add")
       .forEach((b) => {
         b.onclick = () => send(`Add ${b.dataset.id} to my basket`);
+        // Rendered mid-turn, while the stream that produced it is still open — so the
+        // fresh buttons have to be born locked, exactly as the cart's steppers are.
+        b.disabled = busy || b.dataset.unavailable === "1";
       });
     $("#product-scroll").scrollTop = 0;
 
@@ -312,6 +317,7 @@
     conversation.appendChild(el);
     el.querySelectorAll(".chip-option").forEach((b) => {
       b.onclick = () => send(b.dataset.v);
+      b.disabled = busy;
     });
     bottom();
   }
@@ -419,9 +425,19 @@
       .forEach((b) => (b.disabled = locked || b.dataset.atLimit === "1"));
   }
 
+  /* Every control that `send()` would silently swallow goes grey for the duration of a
+   * turn. `send()` drops anything sent while one is open, so a live-looking Checkout
+   * button that ate the click was indistinguishable from a broken backend — and a click
+   * landing mid-stream is one of the easiest ways to reach that state by accident. */
   function setBusy(v) {
     busy = v;
     lockCart(v);
+    document.body.classList.toggle("is-busy", v);
+    $("#checkout").disabled = v;
+    $("#composer").querySelector("button").disabled = v;
+    document
+      .querySelectorAll(".chips button, #product-list .add, .probe .chip-option")
+      .forEach((b) => (b.disabled = v || b.dataset.unavailable === "1"));
   }
 
   // --- checkout --------------------------------------------------------------
@@ -725,9 +741,58 @@
     b.onclick = () => send(b.textContent.trim());
   });
 
-  // Checkout asks the agent for a total; the agent produces the preview itself when
-  // it decides the shopper has decided, so this never invents one.
-  $("#checkout").onclick = () => send("I'm ready to check out. Show me the total.");
+  /* Checkout is a POST, not a sentence.
+   *
+   * It used to send the chat message "I'm ready to check out. Show me the total." and
+   * wait for the model to call preview_transaction. That made a button press a request
+   * for a favour: the panel stayed shut whenever the model answered in prose instead,
+   * and — worse — it stayed shut identically for every legitimate refusal, because the
+   * agent's policy WITHDRAWS the preview tool when the basket is empty or the merchant
+   * requires a field the shopper has not settled. Same nothing, four different reasons.
+   *
+   * POST /chat/checkout computes the preview directly and either streams one or refuses
+   * with a code and a sentence. It charges nothing — the trust gate is still that
+   * confirm_and_pay does not exist in the model's schema until /chat/confirm mints a
+   * token, and this endpoint mints none. */
+  async function openCheckout() {
+    if (busy) return;
+    if (!sessionId) {
+      renderError({
+        code: "no_session",
+        message: "Tell me what you are looking for first, and I will get a basket going.",
+      });
+      return;
+    }
+
+    setBusy(true);
+    const btn = $("#checkout");
+    const label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Getting your total…";
+
+    try {
+      await stream("/chat/checkout", { session_id: sessionId }, {
+        tool_start: () => {},
+        preview: renderPreview,
+        // A refusal is a sentence in the transcript, never a silent no-op. The shopper
+        // gets told the basket is empty, or which detail the merchant still needs.
+        error: renderError,
+        done: () => {},
+      });
+    } catch (err) {
+      renderError({
+        code: "network",
+        message: `Could not reach checkout: ${err.message}`,
+      });
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+      setBusy(false);
+      bottom();
+    }
+  }
+
+  $("#checkout").onclick = openCheckout;
 
   $("#back-to-products").onclick = () => showPane("products");
 
